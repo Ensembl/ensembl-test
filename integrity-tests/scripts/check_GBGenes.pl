@@ -327,7 +327,10 @@ sub find_duplicate_exons {
   my $sth = $db->prepare($q) || $db->throw("can't prepare: $q");
   my $res = $sth->execute || $db->throw("can't execute: $q");
  
+  my $ndup = 0;
   while( my ($exon1_id, $exon2_id) = $sth->fetchrow_array) {
     print "ERROR: Exon duplicate pair: $exon1_id and $exon2_id\n"; 
+    $ndup++;
   }
+  print "Total number of duplicate pairs = $ndup\n";
 }
