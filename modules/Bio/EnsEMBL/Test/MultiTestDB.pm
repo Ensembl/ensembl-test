@@ -17,7 +17,7 @@ package Bio::EnsEMBL::Test::MultiTestDB;
 
 use vars qw(%ENV);
 
-use Bio::EnsEMBL::Utils::Exception qw( warning );
+use Bio::EnsEMBL::Utils::Exception qw( warning throw );
 use File::Basename;
 
 use strict;
