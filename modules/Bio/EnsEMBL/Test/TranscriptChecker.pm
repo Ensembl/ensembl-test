@@ -481,7 +481,7 @@ sub check {
 
   $self->check_UTRs(\@sortedexons);
 
-  #$self->check_Supporting_Evidence(\@sortedexons);
+  $self->check_Supporting_Evidence(\@sortedexons);
 }
 
 sub check_Translation {
@@ -554,6 +554,10 @@ sub check_Structure {
   }
 }
 
+#NOTE: This method doesn't use the UTR methods in Transcript because:
+#  1. They rely on stable_ids
+#  2. They will fetch unnecessary (for this purpose) sequence 
+#
 sub check_UTRs {
   my $self = shift;
   my $exons = shift;
@@ -561,23 +565,37 @@ sub check_UTRs {
   my $translation = $self->transcript->translation;
   my $rank = 0;
   my $trans_start_exon = $translation->start_exon;
-  my $found = 0;
+  my $trans_end_exon = $translation->end_exon;
+  my $foundstart = 0;
+  my $foundend = 0;
   EXON: foreach my $exon (@$exons) {
     if ($exon == $trans_start_exon) {
-      $found = 1;
+      $foundstart = 1;
       if ($translation->start > 3 || $rank > 0) {
         my $startcodon = substr($exon->seq->seq,$translation->start-1,3); 
         if ($startcodon ne "ATG") {
-          $self->add_Warning("No ATG at five prime of transcript with UTR (has $startcodon)\n");
+          $self->add_Warning("No ATG at five prime of transcript CDS with UTR (has $startcodon)\n");
         } 
       }
-      last EXON;
+    }
+    if ($exon == $trans_end_exon) {
+      $foundend = 1;
+      if ($translation->end < ($exon->length-2)) {
+        my $stopcodon = substr($exon->seq->seq,$translation->end-1,3); 
+        if ($stopcodon !~ /TAA|TAG|TGA/) {
+          $self->add_Warning("No TAA, TAG or TGA at three prime end of transcript CDS with UTR (has $stopcodon)\n");
+        } 
+      }
     }
     $rank++;
   }
-  if (!$found) {
+  if (!$foundstart) {
     $self->add_Error("Didn't find translation->start_exon (" . 
                      $trans_start_exon->dbID .  ")\n");
+  }
+  if (!$foundend) {
+    $self->add_Error("Didn't find translation->end_exon (" . 
+                     $trans_end_exon->dbID .  ")\n");
   }
 }
 
@@ -591,7 +609,7 @@ sub check_Supporting_Evidence {
     EXON: foreach my $exon (@$exons) {
       $ea->fetch_evidence_by_Exon($exon);
       if (!scalar($exon->each_Supporting_Feature())) {
-        $self->add_Error("No supporting evidence for exon ".$exon->dbID ."\n");
+        $self->add_Warning("No supporting evidence for exon ".$exon->dbID ."\n");
       }
     }
   }
