@@ -26,6 +26,7 @@ dependant on the arrangement of genes on the Contig. These include:
   1. Genes have been clustered correctly
   2. Interlocking Genes
   3. Genes on both strands with overlapping exons.
+  4. Transcripts on both strands with all overlapping exons
 
 This class does not use stable_ids but instead dbIDs because stable_ids are
 not set until after the gene build.
@@ -173,7 +174,7 @@ sub check {
 
   my $corrected_clusters = $self->check_Clustering();
 
-  $self->find_StrandOverlaps();
+  $self->find_StrandOverlaps($corrected_clusters);
 
   $self->find_Interlocks($corrected_clusters);
 }
@@ -198,7 +199,7 @@ sub check_Clustering {
 # another transcript (came from prune in GeneBuilder)
   foreach my $tran (@transcripts) {
     my @matching_clusters;
-    my ($trans_start, $trans_end) = $self->_get_start_end($tran);
+    my ($trans_start, $trans_end) = $self->_get_transcript_start_end($tran);
 
     # print "transcript limits: $trans_start $trans_end \n";
 
@@ -208,7 +209,7 @@ sub check_Clustering {
       #      " to " . $cluster->end . "\n";
 
       if (!($trans_start > $cluster->end ||
-           $trans_end < $cluster->start)) {
+            $trans_end < $cluster->start)) {
         # print "In range\n";
         foreach my $cluster_transcript ($cluster->get_Transcripts()) {
           foreach my $exon1 ($tran->get_all_Exons) {
@@ -226,19 +227,19 @@ sub check_Clustering {
     }                                   
 
     if (scalar(@matching_clusters) == 0) {
-      print STDERR "Found new cluster for " . $tran->dbID . "\n";
+      # print STDERR "Found new cluster for " . $tran->dbID . "\n";
       my $newcluster = new Bio::EnsEMBL::Utils::TranscriptCluster;
       $newcluster->put_Transcripts($tran);
       push(@clusters,$newcluster);
 
     } elsif (scalar(@matching_clusters) == 1) {
-      print STDERR "Adding to cluster for " . $tran->dbID . "\n";
+      # print STDERR "Adding to cluster for " . $tran->dbID . "\n";
       $matching_clusters[0]->put_Transcripts($tran);
 
     } else {
 
 # Merge the matching clusters into a single cluster
-      print STDERR "Merging clusters for " . $tran->dbID . "\n";
+      # print STDERR "Merging clusters for " . $tran->dbID . "\n";
       my @new_clusters;
       my $merged_cluster = new Bio::EnsEMBL::Utils::TranscriptCluster;
       foreach my $clust (@matching_clusters) {
@@ -246,6 +247,7 @@ sub check_Clustering {
       }
       $merged_cluster->put_Transcripts($tran);
       push @new_clusters,$merged_cluster;
+
 # Add back non matching clusters
       foreach my $clust (@clusters) {
         my $found = 0;
@@ -409,12 +411,12 @@ sub check_for_interlock {
         $cluster2 = $tmp;
       }
       
-      foreach my $trans ($cluster1->get_Transcripts) {
-        print "Cluster1 transcript = " . $trans->dbID . "\n";
-      }
-      foreach my $trans ($cluster2->get_Transcripts) {
-        print "Cluster2 transcript = " . $trans->dbID . "\n";
-      }
+      # foreach my $trans ($cluster1->get_Transcripts) {
+      #   print "Cluster1 transcript = " . $trans->dbID . "\n";
+      # }
+      # foreach my $trans ($cluster2->get_Transcripts) {
+      #   print "Cluster2 transcript = " . $trans->dbID . "\n";
+      # }
       my @containing_exons_unsort = $self->get_cluster_Exons($cluster1);
       my @contained_exons_unsort = $self->get_cluster_Exons($cluster2);
       my @containing_exons = sort {$a->start <=> $b->start} 
@@ -450,19 +452,19 @@ sub find_enclosing_Exons {
   my $left_exon_rank;
   my $right_exon_rank;
 
-  print "Looking for enclosing exons for exon (range " . $contained_exon->start 
-        . " to " . $contained_exon->end .")\n";
+  # print "Looking for enclosing exons for exon (range " . $contained_exon->start 
+  #       . " to " . $contained_exon->end .")\n";
   my $rank = 0;
   CEXON: foreach my $exon (@$containing_exons) {
-    print "Comparing to exon (range " . $exon->start." to ". $exon->end .")\n";
+    # print "Comparing to exon (range " . $exon->start." to ". $exon->end .")\n";
     if ($exon->end < $contained_exon->start) {
       $left_exon = $exon;
       $left_exon_rank = $rank;
-      print "Found left\n"; 
+      # print "Found left\n"; 
     } elsif ($exon->start > $contained_exon->end) {
       $right_exon = $exon;
       $right_exon_rank = $rank;
-      print "Found right\n"; 
+      # print "Found right\n"; 
       last CEXON; 
     } 
     $rank++;
@@ -493,7 +495,7 @@ sub get_cluster_Exons {
 
 
 sub find_StrandOverlaps {
-  my $self = shift;
+  my ($self, $clusters) = @_;
 
 #Get all the exons in all the genes
 #Split into two arrays on strand
@@ -530,20 +532,95 @@ sub find_StrandOverlaps {
   my @sorted_reverse_exons = sort { $a->start <=> $b->start } @reverse_exons;
 
 #This can be optimised further
+  my $has_overlaps = 0;
   FEXON: foreach my $f_exon (@sorted_forward_exons) {
     foreach my $r_exon (@sorted_reverse_exons) {
       if ($r_exon->overlaps($f_exon)) {
         $self->add_Error("Overlapping exons on two strands for exons ". 
                           $f_exon->dbID . " and " . $r_exon->dbID ."\n");
+        $has_overlaps = 1;
       }
       if ($r_exon->start > $f_exon->end) {
         next FEXON;
       } 
     }
   }
+
+#Only do the detailed check if there are some overlapping exons 
+  if ($has_overlaps) {
+    #This contig has overlaps - lets see if there are any really bad ones
+    $self->find_StrandOverlap_Transcripts($clusters);
+  }
 }
 
-sub _get_start_end {
+sub find_StrandOverlap_Transcripts {
+  my ($self, $clusters) = @_;
+
+  my @forward_clusters;
+  my @reverse_clusters;
+ 
+  foreach my $cluster (@$clusters) {
+    if ($cluster->strand == 1) {
+      push (@forward_clusters,$cluster);
+    } else {
+      push (@reverse_clusters,$cluster);
+    }
+  }  
+
+  foreach my $f_cluster (@forward_clusters) {
+    foreach my $r_cluster (@reverse_clusters) {
+      if ($f_cluster->overlaps($r_cluster,'ignore')) {
+        # print "Checking clusters\n";
+        foreach my $f_trans ($f_cluster->get_Transcripts) {
+          foreach my $r_trans ($r_cluster->get_Transcripts) {
+
+            my @f_exons = $f_trans->get_all_Exons;
+            my @r_exons = reverse $r_trans->get_all_Exons;
+
+            if ($self->_all_exons_overlap(\@f_exons,\@r_exons,"forward")) {
+              $self->add_Error("Transcript with all (". scalar(@f_exons) . 
+                               ") overlapping exons on other strand for " . 
+                               $f_trans->dbID . " and " . $r_trans->dbID . 
+                               " (forward)\n");
+            }
+            if ($self->_all_exons_overlap(\@r_exons,\@f_exons,"reverse")) { 
+              $self->add_Error("Transcript with all (". scalar(@r_exons) . 
+                               ") overlapping exons on other strand for " . 
+                               $f_trans->dbID . " and " . $r_trans->dbID . 
+                               " (reverse)\n");
+            } 
+          }
+        }
+      }
+    }
+  }
+}
+
+sub _all_exons_overlap { 
+  my ($self,$exons1, $exons2, $direction) = @_;
+
+  my $nexon2 = scalar(@$exons2);
+  my $exon2_ind = 0;
+
+  #print "Check for overlaps $direction begins\n";
+  EXON1: foreach my $exon1 (@$exons1) {
+    my $found = 0;
+    for (; $exon2_ind < $nexon2; $exon2_ind++) {
+      if ($exon1->overlaps($exons2->[$exon2_ind],'ignore')) {
+        #print "NOTE NOTE Found overlap for exon " . $exon1->dbID . "\n";
+        $found = 1;
+        next EXON1;
+      }
+    }
+    if (!$found) {
+      #print "Failed finding exon " . $exon1->dbID . "\n";
+      return 0;
+    }
+  }
+  return 1;
+}
+
+sub _get_transcript_start_end {
   my ($self, $transcript) = @_;
   my $start;
   my $end;
