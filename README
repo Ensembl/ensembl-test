@@ -1,0 +1,15 @@
+README for ensembl-test
+
+1 October 2001
+
+This directory serves a different purpose to the t/ subdirectories
+within each module and DOES NOT replace them or supersede them in any
+way.
+
+See the following email message for more details:
+
+Date: Fri, 28 Sep 2001 17:38:10 +0100 (BST)
+From: Alistair Rust <rust@ebi.ac.uk>
+To: ensembl-admin@ebi.ac.uk
+Cc: db2@sanger.ac.uk
+Subject: Ensembl-test
