@@ -40,8 +40,8 @@ END {print "not ok 1\n" unless $loaded;}
 
 use strict;
 use lib 't';
-use test_support;
+use TestSupport;
 $loaded = 1;
 print "ok 1\n";		# 1st test passes.
 
-test_support::zero_count_test("select count(*) from feature where seq_end < seq_start", 2);
+TestSupport::zero_count_test("select count(*) from feature where seq_end < seq_start", 2);

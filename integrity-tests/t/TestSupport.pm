@@ -1,13 +1,13 @@
-# test_support.pm       Michael Kirk    2001
+# TestSupport.pm       Michael Kirk    2001
 #
 
-=head1 test_support
+=head1 TestSupport
 
 Handy functions for regression tests, currently only one:
 
 =cut
 
-package test_support;
+package TestSupport;
 
 use lib 't';
 use EnsIntegrityDBAdaptor;

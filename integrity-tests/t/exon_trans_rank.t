@@ -24,18 +24,18 @@ BEGIN { $| = 1; print "1..2\n";
 END {print "not ok 1\n" unless $loaded;}
 
 use lib 't';
-use test_support;
+use TestSupport;
 $loaded = 1;
 print "ok 1\n";		# 1st test passes.
 
 # commented code calls zero_count_test in such a way that it is highly
 # likely to pass, and this may be useful for testing purposes
-#test_support::zero_count_test("
+#TestSupport::zero_count_test("
 #    select count(*)
 #    from   exon
 #    where  id = 'moses'", 2);
 
-test_support::zero_count_test("
+TestSupport::zero_count_test("
     select count(*)
     from   exon_transcript et1, exon_transcript et2, exon e1, exon e2
     where  et1.exon = e1.id and et2.exon = e2.id
