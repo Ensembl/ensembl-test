@@ -1,7 +1,7 @@
 #!/usr/local/bin/perl5.6.1 -w
 
-# Script to check the integrity of the genes in an Ensembl database 
-# or a subset of them.
+# Script to check the integrity of some or all of the genes in an Ensembl 
+# database 
 
 # Maintained by:  Steve Searle (searle@sanger.ac.uk)
 
@@ -27,7 +27,8 @@ my $dbpass = $::db_conf{'dbpass'} || '';
 
 my $gpname = $::db_conf{'golden_path'} || undef; 
 
-#Should be length of segments in which genes are built
+#Should be length of segments in which genes are built to avoid creating VCs
+#which contain transcripts with unmapped exons
 my $vclen = $::scripts_conf{'size'} || 5000000;
 
 my $maxshortintronlen =  $::verify_conf{'maxshortintronlen'} || 50;
@@ -47,10 +48,13 @@ my $mintranslationlen =  $::verify_conf{'mintranslationlen'} || 10;
 my $ignorewarnings =  $::verify_conf{'ignorewarnings'} || 0; 
 my @chromosomes;
 
-my $chrstart = 1;
+my $specstart = 1;
+my $specend   = undef;
 
 my $dnadbname = "";
 my $dnadbhost = "";
+
+my $exon_dup_check = 0;
 
 &GetOptions(
             'dbhost:s'         => \$dbhost,
@@ -63,7 +67,9 @@ my $dnadbhost = "";
             'vclen:n'          => \$vclen,
             'ignorewarnings:n' => \$ignorewarnings,
             'chromosomes:s'    => \@chromosomes,
-            'start:n'          => \$chrstart 
+            'start:n'          => \$specstart,
+            'end:n'            => \$specend,
+            'duplicates:n'     => \$exon_dup_check,
            );
 
 if (!defined($dbhost) || !defined($dbname) || !defined($gpname)) {
@@ -101,22 +107,51 @@ if ($dnadbname ne "") {
 
 my $sgp = $db->get_StaticGoldenPathAdaptor();
 
-my $chrhash = get_chrlengths($dbhost,$dbuser,$dbname);
+#Not practical to do any other way
+if ($exon_dup_check) {
+  print "Performing exon duplicate check for ALL exons\n";
+  find_duplicate_exons($db);
+  print "Done duplicate check\n";
+}
 
-#hackery 
+my $chrhash = get_chrlengths($db);
+
+#filter to specified chromosome names only 
 if (scalar(@chromosomes)) {
   foreach my $chr (@chromosomes) {
-    if (!defined($chrhash->{$chr})) {
+    my $found = 0;
+    foreach my $chr_from_hash (keys %$chrhash) {
+      if ($chr_from_hash =~ /^${chr}$/) {
+        $found = 1;
+        last;
+      }
+    }
+    if (!$found) {
       die "Didn't find chromosome named $chr in database $dbname\n";
     }
   }
   HASH: foreach my $chr_from_hash (keys %$chrhash) {
     foreach my $chr (@chromosomes) {
-      if ($chr_from_hash eq $chr) {next HASH;}
+      if ($chr_from_hash =~ /^${chr}$/) {next HASH;}
     }
     delete($chrhash->{$chr_from_hash});
   }
 }
+
+#set specstart and specend to values which won't cause transcript clipping
+#(multiples of $vclen)
+if ($specstart > 1) {
+  if (defined($specend)) {
+    if ($specend - $specstart > $vclen) {
+      $specstart = $specstart - ($specstart % $vclen) + 1;
+      $specend   = $specend - ($specend % $vclen) + $vclen;
+    }
+  } else {
+    $specstart = $specstart - ($specstart % $vclen) + 1;
+  }
+}
+#print "Start $specstart End $specend\n";
+
 
 my @failed_transcripts;
 
@@ -125,11 +160,15 @@ my $total_genes_with_errors = 0;
 my $total_genes = 0;
 my $total_transcripts = 0;
 
+
 foreach my $chr (sort bychrnum keys %$chrhash) {
 
-  for (my $start=$chrstart; $start <= $chrhash->{$chr}; $start+=$vclen) {
+  my $chrstart = $specstart;
+  my $chrend = (defined ($specend) && $specend < $chrhash->{$chr}) ? $specend :
+               $chrhash->{$chr};
+  for (my $start=$chrstart; $start <= $chrend; $start+=$vclen) {
     my $end = $start + $vclen - 1;
-    if ($end > $chrhash->{$chr}) { $end = $chrhash->{$chr}; }
+    if ($end > $chrend) { $end = $chrend; }
 
     print "VC = " . $chr . " " . $start . " " . $end . "\n";
     my $vc = $sgp->fetch_VirtualContig_by_chr_start_end($chr,$start,$end);
@@ -165,7 +204,7 @@ foreach my $chr (sort bychrnum keys %$chrhash) {
       TRANSCRIPT: foreach my $transcript (@trans) {
         $total_transcripts++;
         my $tc = new 
-    Bio::EnsEMBL::Pipeline::TranscriptChecker(-transcript => $transcript,
+    Bio::EnsEMBL::Test::TranscriptChecker(-transcript => $transcript,
                                      -minshortintronlen => $minshortintronlen,
                                      -maxshortintronlen => $maxshortintronlen,
                                      -minlongintronlen => $minlongintronlen,
@@ -209,14 +248,14 @@ sub print_geneheader {
 }
 
 sub get_chrlengths{
-  my $host = shift;
-  my $user = shift;
-  my $dbname = shift;
+  my $db = shift;
+  
+  if (!$db->isa('Bio::EnsEMBL::DBSQL::DBAdaptor')) {
+    die "get_chrlengths should be passed a Bio::EnsEMBL::DBSQL::DBAdaptor\n";
+  }
+
   my %chrhash;
-  my $db = new Bio::EnsEMBL::DBSQL::DBAdaptor(-host   => $host,
-                                              -user   => $user,
-                                              -dbname => $dbname
-                                             );
+
   my $q = "SELECT chr_name,max(chr_end) FROM static_golden_path GROUP BY chr_name";
  
   my $sth = $db->prepare($q) || $db->throw("can't prepare: $q");
@@ -268,3 +307,24 @@ sub bychrnum {
   }
 }
 
+sub find_duplicate_exons {
+  my $db = shift;
+  
+  if (!$db->isa('Bio::EnsEMBL::DBSQL::DBAdaptor')) {
+    die "find_duplicate_exons should be passed a Bio::EnsEMBL::DBSQL::DBAdaptor\n";
+  }
+
+  my $q = qq( SELECT e1.exon_id, e2.exon_id 
+              FROM exon as e1, exon as e2 
+              WHERE e1.exon_id<e2.exon_id AND e1.seq_start=e2.seq_start AND 
+                    e1.seq_end=e2.seq_end AND e1.contig_id=e2.contig_id AND 
+                    e1.strand=e2.strand AND e1.phase=e2.phase
+              ORDER BY e1.exon_id 
+            ); 
+  my $sth = $db->prepare($q) || $db->throw("can't prepare: $q");
+  my $res = $sth->execute || $db->throw("can't execute: $q");
+ 
+  while( my ($exon1_id, $exon2_id) = $sth->fetchrow_array) {
+    print "ERROR: Exon duplicate pair: $exon1_id and $exon2_id\n"; 
+  }
+}
