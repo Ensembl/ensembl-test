@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use File::Basename;
 
 use Getopt::Long;
 use Test::Harness;
@@ -10,7 +11,7 @@ my ($opt_l, $opt_h, $opt_c);
 
 GetOptions('l' => \$opt_l,
            'h' => \$opt_h,
-	   'c=s' => \$opt_c);
+	   'c' => \$opt_c);
 
 
 #print usage on '-h' command line option
@@ -39,16 +40,28 @@ eval {
   runtests(grep {!/CLEAN\.t/} @{&get_all_tests(\@ARGV)});
 };
 
-&clean;
+&clean(\@ARGV);
 
 sub clean {
   #unset env var indicating final cleanup should be performed
   delete $ENV{"RUNTESTS_HARNESS"};
   if ($opt_c) {
+    my @arguments;
+    my %already_seen;
+    foreach my $file (@ARGV) {
+      if (-d $file) {
+        push @arguments, $file;
+      }
+      my $dir = dirname($file);
+      next if ($already_seen{$dir});
+      push @arguments, $dir;
+      $already_seen{$dir} = 1;
+    }
     eval {
-      runtests(($opt_c));
+      runtests(grep {/CLEAN\.t/} @{&get_all_tests(\@arguments)});
     };
   }
+
   exit;
 }
 
