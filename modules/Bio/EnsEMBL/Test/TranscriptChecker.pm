@@ -55,10 +55,11 @@ use vars qw(@ISA $AUTOLOAD);
 use strict;
 
 use Bio::EnsEMBL::DBSQL::ExonAdaptor;
+use Bio::EnsEMBL::Test::CheckerI;
 use Bio::EnsEMBL::Intron;
 
 
-@ISA = qw( Bio::Root::RootI );
+@ISA = qw( Bio::EnsEMBL::Test::CheckerI );
 
 
 sub new {
@@ -145,14 +146,6 @@ sub new {
   return $self;
 }
 
-
-sub ignorewarnings {
-  my ( $self, $arg ) = @_;
-  if( defined $arg ) {
-    $self->{_ignorewarnings} = $arg;
-  }
-  return $self->{_ignorewarnings};
-}                                                                               
 
 sub mintranslationlen {
   my ( $self, $arg ) = @_;
@@ -282,60 +275,6 @@ sub exonadaptor {
   return $self->{_exonadaptor};
 }
  
-=head2 add_Error 
- 
- Title   : add_Error
- Usage   : $obj->add_Error($newval)
- Function:
- Returns : value of errors
- 
- 
-=cut
- 
-sub add_Error {
-   my $self = shift;
-   if( @_ ) {
-      my $value = shift;
-      push @{$self->{_errors}},$value;
-    }
-    return @{$self->{_errors}};
-}      
-
-sub get_all_Errors {
-   my $self = shift;
-   if (!defined($self->{_errors})) {
-     @{$self->{_errors}} = ();
-   }
-   return @{$self->{_errors}};
-}      
-
-sub add_Warning {
-   my $self = shift;
-   if( @_ ) {
-      my $value = shift;
-      push @{$self->{_warnings}},$value;
-    }
-    return @{$self->{_warnings}};
-}      
-
-sub get_all_Warnings {
-   my $self = shift;
-   if (!defined($self->{_warnings})) {
-     @{$self->{_warnings}} = ();
-   }
-   return @{$self->{_warnings}};
-}      
-
-sub has_Errors {
-  my $self = shift;
-
-  if (scalar($self->get_all_Errors) || 
-      (scalar($self->get_all_Warnings) && !$self->ignorewarnings)) {
-    return 1;
-  } 
-  return 0;
-} 
-
 sub output {
   my $self = shift;
 
@@ -359,18 +298,8 @@ sub output {
     print "\n";
   }
 
-  if (scalar($self->get_all_Errors)) {
-    print "\nErrors:\n";
-    foreach my $error ($self->get_all_Errors()) {
-      print "  " . $error;
-    }
-  }
-  if (scalar($self->get_all_Warnings)) {
-    print "\nWarnings:\n";
-    foreach my $warning ($self->get_all_Warnings) {
-      print "  " . $warning;
-    }
-  }
+  $self->SUPER::output;
+
   if ($self->adaptor) {
     $self->print_raw_data;
   }
