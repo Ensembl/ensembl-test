@@ -40,7 +40,7 @@ my $db = EnsIntegrityDBAdaptor->new();
 print "ok 2\n";		# 2nd test passes.
 
 my $first_loop_test = 3;	# Test 3 is the first test in the main loops.
-my @failed;	# For tests in main loops, failed[i] "true" if test i failed.
+my @failed;	# For tests in main loops, $failed[$i] "true" if test $i failed.
 
 my @contig_ids = $db->get_all_Contig_id;
 
