@@ -180,6 +180,10 @@ sub load_databases {
   #create database from conf and from zip files 
   my $conf_file = $self->curr_dir . $CONF_FILE;
 
+  if(! -e $conf_file) {
+    throw("Required conf file '$conf_file' does not exist");
+  }
+
   my $db_conf = do $conf_file;
 
   my $port   = $db_conf->{'port'};
