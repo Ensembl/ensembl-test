@@ -10,6 +10,7 @@ use Getopt::Long;
 
 use Bio::EnsEMBL::DBSQL::DBAdaptor;
 use Bio::EnsEMBL::Test::TranscriptChecker;
+use Bio::EnsEMBL::Test::ContigGenesChecker;
 
 
 BEGIN {
@@ -113,7 +114,7 @@ if ($exon_dup_check) {
   print "Done duplicate check\n";
 }
 
-my $chrhash = get_chrlengths($db);
+my $chrhash = get_chrlengths($db, $gpname);
 
 #filter to specified chromosome names only 
 if (scalar(@chromosomes)) {
@@ -180,6 +181,21 @@ foreach my $chr (sort bychrnum keys %$chrhash) {
     my $geneend   = -1;
   
     my @genes = $vc->get_all_Genes();
+
+    my $cgc = new Bio::EnsEMBL::Test::ContigGenesChecker(
+                                     -contig         => $vc,
+                                     -genes          => \@genes,
+                                     -ignorewarnings => $ignorewarnings,
+                                     -adaptor        => $db, 
+                                     -vc             => $vc,
+                                     );
+    $cgc->check;
+
+    if ($cgc->has_Errors()) {
+      print "--------------------------------------\n";
+      print "VC " . $chr . " " . $start . " " . $end . "\n";
+      $cgc->output;
+    }
 
     GENE: foreach my $gene (@genes) {
   
@@ -252,6 +268,7 @@ sub print_geneheader {
 
 sub get_chrlengths{
   my $db = shift;
+  my $type = shift;
   
   if (!$db->isa('Bio::EnsEMBL::DBSQL::DBAdaptor')) {
     die "get_chrlengths should be passed a Bio::EnsEMBL::DBSQL::DBAdaptor\n";
@@ -259,7 +276,9 @@ sub get_chrlengths{
 
   my %chrhash;
 
-  my $q = "SELECT chr_name,max(chr_end) FROM static_golden_path GROUP BY chr_name";
+  my $q = qq( SELECT chr_name,max(chr_end) FROM static_golden_path as sgp
+               WHERE sgp.type = '$type' GROUP BY chr_name
+            );
  
   my $sth = $db->prepare($q) || $db->throw("can't prepare: $q");
   my $res = $sth->execute || $db->throw("can't execute: $q");
@@ -321,7 +340,8 @@ sub find_duplicate_exons {
               FROM exon as e1, exon as e2 
               WHERE e1.exon_id<e2.exon_id AND e1.seq_start=e2.seq_start AND 
                     e1.seq_end=e2.seq_end AND e1.contig_id=e2.contig_id AND 
-                    e1.strand=e2.strand AND e1.phase=e2.phase
+                    e1.strand=e2.strand AND e1.phase=e2.phase AND
+                    e1.end_phase=e2.end_phase
               ORDER BY e1.exon_id 
             ); 
   my $sth = $db->prepare($q) || $db->throw("can't prepare: $q");
