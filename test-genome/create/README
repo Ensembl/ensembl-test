@@ -1,0 +1,21 @@
+README for dir /ensembl-test/test-genome/create
+
+Contents:
+
+- test_genome_table.sql
+  SQL to create an empty test genome db.  Includes core Ensembl
+  table schemas and pipeline table schemas.
+
+- test_genome_populate.sql
+  SQL to populate the test genome db with 2Mb of sequence.
+  Should be used in-conjunction with test_genome_table.sql
+
+- flush_rawtables.pl
+  Simple script which flushes a selection of tables in a db
+  following a run of the raw pipeline.  Primary use is really
+  for cleaning tables when running small number of contigs to
+  test code etc.
+  Pod included.
+
+Created: 04/10/01
+Last modification: 04/10/01
