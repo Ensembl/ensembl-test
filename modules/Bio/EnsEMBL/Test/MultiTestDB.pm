@@ -410,14 +410,14 @@ sub hide {
     #copy contents of table into a temp table
 
     my $sth =
-      $adaptor->prepare("CREATE TABLE $hidden_name " .
+      $adaptor->db->prepare("CREATE TABLE $hidden_name " .
                         "SELECT * FROM $table");
 
     $sth->execute();
     $sth->finish();
 
     #delete the contents of the original table
-    $sth = $adaptor->prepare("DELETE FROM $table");
+    $sth = $adaptor->db->prepare("DELETE FROM $table");
     $sth->execute();
     $sth->finish();
 
@@ -475,18 +475,18 @@ sub restore {
     my $hidden_name = $self->{'conf'}->{$dbtype}->{'hidden'}->{$table};
 	
     #delete current contents of table
-    my $sth = $adaptor->prepare("delete from $table");
+    my $sth = $adaptor->db->prepare("delete from $table");
     $sth->execute();
     $sth->finish();
 
     #copy contents of tmp table back into main table
-    $sth = $adaptor->prepare("insert into $table " .
+    $sth = $adaptor->db->prepare("insert into $table " .
                              "select * from $hidden_name");
     $sth->execute();
     $sth->finish();
 
     #drop temp table
-    $sth = $adaptor->prepare("drop table $hidden_name");
+    $sth = $adaptor->db->prepare("drop table $hidden_name");
     $sth->execute();
     $sth->finish();
 
@@ -537,7 +537,7 @@ sub save {
       $hidden_name = "_hidden_$table";
 
       #copy the data from the hidden table into the new table
-      my $sth = $adaptor->prepare("insert into $table " .
+      my $sth = $adaptor->db->prepare("insert into $table " .
                                   "select * from $hidden_name"); 
       $sth->execute;
     }
