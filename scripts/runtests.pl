@@ -11,7 +11,7 @@ my ($opt_l, $opt_h, $opt_c);
 
 GetOptions('l' => \$opt_l,
            'h' => \$opt_h,
-	   'c' => \$opt_c);
+           'c' => \$opt_c);
 
 
 #print usage on '-h' command line option
@@ -19,6 +19,7 @@ if($opt_h) {
   &usage;
   exit;
 }
+
 
 #list test files on '-l' command line option
 if($opt_l) {
@@ -43,12 +44,14 @@ eval {
 &clean(\@ARGV);
 
 sub clean {
+  my $tests = shift;
+
   #unset env var indicating final cleanup should be performed
   delete $ENV{"RUNTESTS_HARNESS"};
   if ($opt_c) {
     my @arguments;
     my %already_seen;
-    foreach my $file (@ARGV) {
+    foreach my $file (@$tests) {
       if (-d $file) {
         push @arguments, $file;
       }
@@ -94,9 +97,8 @@ sub get_all_tests {
     @files = @$input_files_directories
   } else {
     #otherwise use every file in the directory
-    $dir = "./t/";
-    unless(opendir(DIR, "./t/")) {
-      warn("WARNING: cannot open directory ./t\n");
+    unless(opendir(DIR, ".")) {
+      warn("WARNING: cannot open directory .\n");
       return [];
     }
     @files = readdir DIR;
