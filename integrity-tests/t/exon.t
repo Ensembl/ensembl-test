@@ -21,7 +21,7 @@
 # Note: sticky exons are not tested. They should be!
 
 ## We start with some black magic to print on failure.
-BEGIN { $| = 1; print "1..3\n"; 
+BEGIN { $| = 1; print "1..5\n"; 
 	use vars qw($loaded); }
 END {print "not ok 1\n" unless $loaded;}
 
@@ -31,7 +31,7 @@ use EnsIntegrityDBAdaptor;
 $loaded = 1;
 print "ok 1\n";		# 1st test passes.
 
-# Test 3 fails when evidence length exceeds feature length by this many bases:
+# Test 3 fails when evidence length exceeds feat. length by this much:
 my $margin = 40;	# No special provision is made for protein evidence.
 			# This just means that protein evidence that is up to
 			# approx. 3 times too long will slip through our net!
@@ -39,24 +39,39 @@ my $margin = 40;	# No special provision is made for protein evidence.
 my $db = EnsIntegrityDBAdaptor->new();
 print "ok 2\n";		# 2nd test passes.
 
-my $first_loop_test = 3;	# Test 3 is the first test in the main loop.
-my $current_loop_test = $first_loop_test;	# Current test in main loop.
-my @failed;	# For tests in main loop, failed[i] is "true" if test i failed.
+my $first_loop_test = 3;	# Test 3 is the first test in the main loops.
+my @failed;	# For tests in main loops, failed[i] "true" if test i failed.
 
 my @contig_ids = $db->get_all_Contig_id;
 
-# Store all nonsticky exons, in a hash of arrays, keyed by contig ID.
-my %nonsticky_exons;
+# Store all nonsticky exon IDs, in a hash of arrays, keyed by contig ID.
+my %nonsticky_exon_ids;
 foreach my $contig_id (@contig_ids)
 {
-    $nonsticky_exons{$contig_id} = [ () ];
-    my $contig = $db->get_Contig($contig_id);	# non-virtual contig object
-    my @current_exons = $contig->get_all_Exons;
-    foreach my $exon (@current_exons)
+    $nonsticky_exon_ids{$contig_id} = [ () ];	# clear the array of exon IDs
+    my $contig;		# current nonvirtual contig object
+
+    # Test 3: each contig must be retrievable.
+    # This is not an exon test but we want all contigs and have to trap
+    # failure in an eval for the script to continue, so we might as well
+    # report on it.
+    eval
     {
-	unless ($exon->isa('Bio::EnsEMBL::StickyExon'))
+	$contig = $db->get_Contig($contig_id);
+    };
+    if ($@)
+    {
+	$failed[3] = "true";
+    }
+    else
+    {
+	my @current_exons = $contig->get_all_Exons;
+	foreach my $exon (@current_exons)
 	{
-	    push @{ $nonsticky_exons{$contig_id} }, $exon;
+	    unless ($exon->isa('Bio::EnsEMBL::StickyExon'))
+	    {
+		push @{ $nonsticky_exon_ids{$contig_id} }, $exon->id;
+	    }
 	}
     }
 }
@@ -66,9 +81,10 @@ foreach my $contig_id (@contig_ids)
 
 foreach my $contig_id (@contig_ids)
 {
-    foreach my $exon (@{ $nonsticky_exons{$contig_id} })
+    foreach my $exon_id (@{ $nonsticky_exon_ids{$contig_id} })
     {
-	# Test 3: supporting evidence mustn't be much
+	my $exon = $db->gene_Obj->get_Exon($exon_id);
+	# Test 4: supporting evidence mustn't be much
 	# longer than the evidence it supports.
 	$db->gene_Obj->get_supporting_evidence_direct($exon);
 	my @features = $exon->each_Supporting_Feature;
@@ -78,14 +94,14 @@ foreach my $contig_id (@contig_ids)
 	    my $hit_bases_hit = $feature->hend - $feature->hstart;
 	    if ($hit_bases_hit > ($exon_bases_hit + $margin))
 	    {
-		$failed[$current_loop_test++] = "true";
+		$failed[4] = "true";
 	    }
 	}
 
-	# Test 4: exon length must be at least 3.
+	# Test 5: exon length must be at least 3.
 	if ($exon->length < 3)
 	{
-	    $failed[$current_loop_test++] = "true";
+	    $failed[5] = "true";
 	}
     }
 }
