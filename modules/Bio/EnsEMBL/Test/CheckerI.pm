@@ -42,9 +42,10 @@ use strict;
 
 use Bio::EnsEMBL::DBSQL::ExonAdaptor;
 use Bio::EnsEMBL::Intron;
+use Bio::EnsEMBL::Root;
 
 
-@ISA = qw( Bio::Root::RootI );
+@ISA = qw(Bio::EnsEMBL::Root);
 
 sub ignorewarnings {
   my ( $self, $arg ) = @_;
