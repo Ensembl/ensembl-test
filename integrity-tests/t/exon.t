@@ -45,7 +45,12 @@ my @failed;	# For tests in main loops, failed[i] "true" if test i failed.
 my @contig_ids = $db->get_all_Contig_id;
 
 # Store all nonsticky exon IDs, in a hash of arrays, keyed by contig ID.
-my %nonsticky_exon_ids;
+# Also store them separately in a contiguous array.
+
+my @nonsticky_exon_id_arr = ();	# array of all non-sticky exon IDs
+my $current_exon_id = 0;	# cursor for @nonsticky_exon_id_arr
+my $exon_id_cursor = 0;		# Index to @exon_id_arr
+my %nonsticky_exon_ids;		# per-contig arrays of nonsticky exon IDs
 foreach my $contig_id (@contig_ids)
 {
     $nonsticky_exon_ids{$contig_id} = [ () ];	# clear the array of exon IDs
@@ -71,12 +76,13 @@ foreach my $contig_id (@contig_ids)
 	    unless ($exon->isa('Bio::EnsEMBL::StickyExon'))
 	    {
 		push @{ $nonsticky_exon_ids{$contig_id} }, $exon->id;
+		$nonsticky_exon_id_arr[$current_exon_id++] = $exon->id;
 	    }
 	}
     }
 }
 
-# Main test loop. Failure does not prompt early exit, since there are
+# Contig-based test loop. Failure does not prompt early exit, since there are
 # several tests and we want to know whether each of these passes or fails.
 
 foreach my $contig_id (@contig_ids)
@@ -84,6 +90,7 @@ foreach my $contig_id (@contig_ids)
     foreach my $exon_id (@{ $nonsticky_exon_ids{$contig_id} })
     {
 	my $exon = $db->gene_Obj->get_Exon($exon_id);
+
 	# Test 4: supporting evidence mustn't be much
 	# longer than the evidence it supports.
 	$db->gene_Obj->get_supporting_evidence_direct($exon);
@@ -103,6 +110,17 @@ foreach my $contig_id (@contig_ids)
 	{
 	    $failed[5] = "true";
 	}
+    }
+}
+
+# Test 6: exon IDs must be unique.
+my @sorted_exon_ids = sort @nonsticky_exon_id_arr;
+for my $i (1 .. $#sorted_exon_ids)
+{
+    if ($sorted_exon_ids[$i - 1] eq $sorted_exon_ids[$i])
+    {
+	$failed[6] = "true";
+	last;
     }
 }
 
