@@ -6,12 +6,11 @@
 # Maintained by:  Steve Searle (searle@sanger.ac.uk)
 
 use strict;
-use Bio::SeqIO;
+use Getopt::Long;
+
 use Bio::EnsEMBL::DBSQL::DBAdaptor;
-use Bio::EnsEMBL::Transcript;
 use Bio::EnsEMBL::Test::TranscriptChecker;
 
-use Getopt::Long;
 
 BEGIN {
     require "Bio/EnsEMBL/Pipeline/GB_conf.pl";
@@ -73,7 +72,8 @@ my $exon_dup_check = 0;
            );
 
 if (!defined($dbhost) || !defined($dbname) || !defined($gpname)) {
-  die "ERROR: Must at least set dbhost (-dbhost), dbname (-dbname) and golden path type (-goldenpath)\n".
+  die "ERROR: Must at least set dbhost (-dbhost), dbname (-dbname)\n" .
+      "       and golden path type (-goldenpath)\n".
       "       (options can also be set in GB_conf.pl)\n";
 }
 
@@ -96,12 +96,11 @@ if ($dnadbname ne "") {
     $host = $dbhost;
   }
 
-  my $dnadbase = new Bio::EnsEMBL::DBSQL::DBAdaptor(
-                                                -host             => $host,
-                                                -user             => $dbuser,
-                                                -dbname           => $dnadbname,
-                                                -pass             => $dbpass,
-                                                );
+  my $dnadbase = new Bio::EnsEMBL::DBSQL::DBAdaptor(-host   => $host,
+                                                    -user   => $dbuser,
+                                                    -dbname => $dnadbname,
+                                                    -pass   => $dbpass,
+                                                   );
   $db->dnadb($dnadbase);
 }
 
@@ -161,6 +160,7 @@ my $total_genes = 0;
 my $total_transcripts = 0;
 
 
+# Begin testing genes
 foreach my $chr (sort bychrnum keys %$chrhash) {
 
   my $chrstart = $specstart;
@@ -204,25 +204,27 @@ foreach my $chr (sort bychrnum keys %$chrhash) {
       TRANSCRIPT: foreach my $transcript (@trans) {
         $total_transcripts++;
         my $tc = new 
-    Bio::EnsEMBL::Test::TranscriptChecker(-transcript => $transcript,
-                                     -minshortintronlen => $minshortintronlen,
-                                     -maxshortintronlen => $maxshortintronlen,
-                                     -minlongintronlen => $minlongintronlen,
-                                     -minshortexonlen => $minshortexonlen,
-                                     -maxshortexonlen => $maxshortexonlen,
-                                     -minlongexonlen => $minlongexonlen,
-                                     -mintranslationlen => $mintranslationlen,
+    Bio::EnsEMBL::Test::TranscriptChecker(
+                                     -transcript         => $transcript,
+                                     -minshortintronlen  => $minshortintronlen,
+                                     -maxshortintronlen  => $maxshortintronlen,
+                                     -minlongintronlen   => $minlongintronlen,
+                                     -minshortexonlen    => $minshortexonlen,
+                                     -maxshortexonlen    => $maxshortexonlen,
+                                     -minlongexonlen     => $minlongexonlen,
+                                     -mintranslationlen  => $mintranslationlen,
                                      -maxexonstranscript => $maxexonstranscript,
-                                     -ignorewarnings => $ignorewarnings,
-                                     -adaptor => $db, 
-                                     -vc => $vc);
+                                     -ignorewarnings     => $ignorewarnings,
+                                     -adaptor            => $db, 
+                                     -vc                 => $vc,
+                                         );
         $tc->check;
 
         if ($tc->has_Errors()) {
           $total_transcripts_with_errors++;
           if (!$nwitherror) {
             print_geneheader($gene);
-           $total_genes_with_errors++;
+            $total_genes_with_errors++;
           }
           $tc->output;
           # Don't store for now!!!  push @failed_transcripts,$tc;
@@ -239,6 +241,7 @@ print "Number of transcripts checked     = $total_transcripts\n\n";
 print "Number of transcripts with errors = $total_transcripts_with_errors\n";
 print "Number of genes with errors       = $total_genes_with_errors\n\n";
 
+#End of main
 
 sub print_geneheader {
   my $gene = shift;
