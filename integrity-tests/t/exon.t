@@ -36,8 +36,12 @@ use EnsIntegrityDBAdaptor;
 $loaded = 1;
 print "ok 1\n";		# 1st test passes.
 
-# fail when exon evidence length exceeds feature length by this factor:
-my $cutoff = 6.0;	# I just guessed a reasonable number - DB
+# fail when exon evidence length exceeds feature length by this number
+# of bases:
+my $margin = 40;	# No special provision is made for protein evidence.
+			# This just means that protein evidence that
+			# is up to approx. 3 times too long will slip
+			# through our net!
 
 my $db = EnsIntegrityDBAdaptor->new();
 print "ok 2\n";		# 2nd test passes.
@@ -66,7 +70,7 @@ foreach my $clone_id (@clone_ids)
                     {
                         my $exon_bases_hit = $feature->length;
                         my $hit_bases_hit = $feature->hend - $feature->hstart;
-			if ($hit_bases_hit > ($cutoff * $exon_bases_hit))
+			if ($hit_bases_hit > ($exon_bases_hit + $margin))
 			{
 			    print "not ok 3\n";
 			    $failed = "true";
