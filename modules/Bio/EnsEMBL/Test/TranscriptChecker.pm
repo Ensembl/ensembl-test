@@ -13,7 +13,7 @@
 
 =head1 NAME
 
-Bio::EnsEMBL::PipeLine::TranscriptChecker - Module to check the validity of
+Bio::EnsEMBL::Test::TranscriptChecker - Module to check the validity of
 a transcript
 
 =head1 SYNOPSIS
@@ -34,7 +34,7 @@ The rest of the documentation details each of the object methods. Internal metho
 # Let the code begin...
 
 
-package Bio::EnsEMBL::Pipeline::TranscriptChecker;
+package Bio::EnsEMBL::Test::TranscriptChecker;
 use vars qw(@ISA $AUTOLOAD);
 use strict;
 
