@@ -12,40 +12,53 @@ use Bio::EnsEMBL::DBSQL::DBAdaptor;
 use Bio::EnsEMBL::Test::TranscriptChecker;
 use Bio::EnsEMBL::Test::ContigGenesChecker;
 
-
-BEGIN {
-    require "Bio/EnsEMBL/Pipeline/GB_conf.pl";
-} 
-
+use Bio::EnsEMBL::Pipeline::GeneConf qw (
+					 GB_FINALDBHOST
+					 GB_FINALDBNAME
+					 GB_GOLDEN_PATH
+					 GB_DBUSER
+					 GB_DBPASS
+					 GB_SIZE
+					 GB_MAXSHORTINTRONLEN
+					 GB_MINSHORTINTRONLEN
+					 GB_MINLONGINTRONLEN
+					 GB_MAX_EXONSTRANSCRIPT
+					 GB_MAXSHORTEXONLEN
+					 GB_MINSHORTEXONLEN
+					 GB_MINLONGEXONLEN 
+					 GB_MAXTRANSCRIPTS
+					 GB_MINTRANSLATIONLEN
+					 GB_IGNOREWARNINGS
+					 );
 
 $| = 1;
 
-my $dbhost = $::db_conf{'finaldbhost'} || undef;
-my $dbname = $::db_conf{'finaldbname'} || undef;
-my $dbuser = $::db_conf{'dbuser'} || 'ensro';
-my $dbpass = $::db_conf{'dbpass'} || ''; 
+my $dbhost = $GB_FINALDBHOST || undef;
+my $dbname = $GB_FINALDBNAME || undef;
+my $dbuser = $GB_DBUSER || 'ensro';
+my $dbpass = $GB_DBPASS || ''; 
 
-my $gpname = $::db_conf{'golden_path'} || undef; 
+my $gpname = $GB_GOLDEN_PATH || undef; 
 
 #Should be length of segments in which genes are built to avoid creating VCs
 #which contain transcripts with unmapped exons
-my $vclen = $::scripts_conf{'size'} || 5000000;
+my $vclen = $GB_SIZE || 5000000;
 
-my $maxshortintronlen =  $::verify_conf{'maxshortintronlen'} || 50;
-my $minshortintronlen =  $::verify_conf{'minshortintronlen'} || 3;
-my $minlongintronlen  =  $::verify_conf{'minlongintronlen'} || 100000;
+my $maxshortintronlen  =  $GB_MAXSHORTINTRONLEN || 50;
+my $minshortintronlen  =  $GB_MINSHORTINTRONLEN || 3;
+my $minlongintronlen   =  $GB_MINLONGINTRONLEN  || 100000;
 
-my $maxexonstranscript =  $::verify_conf{'maxexonstranscript'} || 150;
+my $maxexonstranscript =  $GB_MAX_EXONSTRANSCRIPT || 150;
 
-my $maxshortexonlen  =  $::verify_conf{'maxshortexonlen'} || 10;
-my $minshortexonlen  =  $::verify_conf{'minshortexonlen'} || 3;
-my $minlongexonlen   =  $::verify_conf{'minlongexonlen'} || 50000;
+my $maxshortexonlen    =  $GB_MAXSHORTEXONLEN || 10;
+my $minshortexonlen    =  $GB_MINSHORTEXONLEN || 3;
+my $minlongexonlen     =  $GB_MINLONGEXONLEN  || 50000;
 
-my $maxtranscripts =  $::verify_conf{'maxtranscripts'} || 10; 
+my $maxtranscripts     =  $GB_MAXTRANSCRIPTS || 10; 
 
-my $mintranslationlen =  $::verify_conf{'mintranslationlen'} || 10; 
+my $mintranslationlen  =  $GB_MINTRANSLATIONLEN || 10; 
 
-my $ignorewarnings =  $::verify_conf{'ignorewarnings'} || 0; 
+my $ignorewarnings     =  $GB_IGNOREWARNINGS || 0; 
 my @chromosomes;
 
 my $specstart = 1;
@@ -75,7 +88,7 @@ my $exon_dup_check = 0;
 if (!defined($dbhost) || !defined($dbname) || !defined($gpname)) {
   die "ERROR: Must at least set dbhost (-dbhost), dbname (-dbname)\n" .
       "       and golden path type (-goldenpath)\n".
-      "       (options can also be set in GB_conf.pl)\n";
+      "       (options can also be set in GeneConf.pm)\n";
 }
 
 if (scalar(@chromosomes)) {
