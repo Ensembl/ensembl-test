@@ -28,7 +28,7 @@ Performs various checks on a Bio::EnsEMBL::Transcript object. These include:
   5. Transcript translates
   6. Translation is longer than a specified minimum length
   7. Short or long introns
-  8. Introns with non GT .. AG splice sites
+  8. Introns with non GT .. AG splice sites (warnings)
   9. Short or long exons
  10. ATG immediately after 5' UTR (warning)
  11. There are supporting features for every exon 
@@ -55,6 +55,7 @@ use vars qw(@ISA $AUTOLOAD);
 use strict;
 
 use Bio::EnsEMBL::DBSQL::ExonAdaptor;
+use Bio::EnsEMBL::Intron;
 
 
 @ISA = qw( Bio::Root::RootI );
@@ -341,8 +342,9 @@ sub output {
   my $transcript = $self->transcript;
 
   print "\n===\n";
-  print "Transcript " . $transcript->dbID . "\n";
-  
+  print "Transcript " . $transcript->dbID . " " . 
+        (defined($transcript->stable_id) ? $transcript->stable_id : "") .  "\n";
+ 
   my $vcoffset = 0;
   if ($self->vc) {
     $vcoffset = $self->vc->_global_start - 1;
@@ -421,10 +423,10 @@ sub print_raw_data {
 
 
 sub check {
-  #print "Transcript " . $transcript->dbID . " ";
   my $self = shift;
 
   my $transcript = $self->transcript; 
+  #print "Transcript " . $transcript->dbID . " ";
   my @exons = $transcript->get_all_Exons();
 
   my $numexon = scalar(@exons);
@@ -473,7 +475,7 @@ sub check {
   }
 
 
-  $self->check_Structure(\@sortedexons);
+  $self->check_Structure(\@sortedexons, $transstart, $transend);
 
   $self->check_Translation;
 
@@ -511,10 +513,14 @@ sub check_Translation {
 sub check_Structure {
   my $self = shift;
   my $sortedexons = shift;
+  my $transstart = shift;
+  my $transend = shift;
 
   my $prev_exon = undef;
+  my $totalexonlen  = 0;
   foreach my $exon (@$sortedexons) {
     my $exlen = $exon->length;
+    $totalexonlen+=$exlen;
 
     if ($exlen >= $self->minshortexonlen && 
         $exlen <= $self->maxshortexonlen) {
@@ -537,6 +543,14 @@ sub check_Structure {
       }
     }
     $prev_exon = $exon;
+  }
+  my $exondensity = $totalexonlen/($transend-$transstart+1);
+  if (scalar(@$sortedexons) > 1) {
+    if ($exondensity > 0.8) {
+      $self->add_Warning("Unusually high exon density (exon len/genomic len) (value $exondensity)\n");
+    } elsif ($exondensity < 0.005) { 
+      $self->add_Warning("Unusually low exon density (exon len/genomic len) (value $exondensity)\n");
+    }
   }
 }
 
@@ -606,17 +620,21 @@ sub check_Intron {
                      "\n", 'longintron');
   }
 
-  if ($intlen >= $self->minshortintronlen) {
+  # if ($intlen >= $self->minshortintronlen) {
+  if ($intlen >= 2) {
     my $intseq = $intron->seq->seq;
+    #print "Checking intron\n";
     if (substr($intseq,0,2) ne "GT") {
       $self->add_Warning("Non consensus 5' intron splice site sequence (".
                          substr($intseq,0,2) . ") after exon " . 
-                         $prev_exon->dbID . "\n", 'noncons5');
+                         $prev_exon->dbID . " (intron length = " . $intlen .
+                         ")\n", 'noncons5');
     }
     if (substr($intseq,-2,2) ne "AG") {
       $self->add_Warning("Non consensus 3' intron splice site sequence (".
                          substr($intseq,-2,2) . 
-                         ") before exon " .  $exon->dbID . "\n", 'noncons3');
+                         ") before exon " .  $exon->dbID . " (intron length = ".
+                         $intlen . ")\n", 'noncons3');
     }
   } 
 }
