@@ -158,7 +158,8 @@ sub create_adaptors {
 			      -pass   => $db->{'pass'},
 			      -port   => $db->{'port'},
 			      -host   => $db->{'host'},
-			      -driver => $db->{'driver'});
+			      -driver => $db->{'driver'},
+			      -species => $self->{'species'});
     };
 	
     if ($@) {
