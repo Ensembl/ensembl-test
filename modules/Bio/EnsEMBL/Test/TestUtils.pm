@@ -3,6 +3,36 @@ use warnings;
 
 package Bio::EnsEMBL::Test::TestUtils;
 
+=head1 NAME
+
+Bio::EnsEMBL::Test::TestUtils - Utilities for testing the EnsEMBL Perl API
+
+=head1 SYNOPSIS
+
+  debug("Testing Bio::EnsEMBL::Slice->foo() method")
+  ok(&test_getter_setter($object, 'foo', 'value'));
+  count_rows($human_dba, "gene");
+
+=head1 DESCRIPTION
+
+This module contains a several utilities for testing the EnsEMBL Perl API.
+
+=head1 EXPORTS
+
+This modules exports the following methods by default:
+
+ - debug
+ - test_getter_setter
+ - count_rows
+
+=head1 CONTACT
+
+Email questions to the ensembl developer mailing list <ensembl-dev@ebi.ac.uk>
+
+=head1 METHODS
+
+=cut
+
 use Exporter;
 
 use vars qw( @ISA @EXPORT );
@@ -49,11 +79,35 @@ sub test_getter_setter {
     return $ret_val;
 }
 
+=head2 debug
+
+  Arg [...]  : array of strings to be printed
+  Example    : debug("Testing Bio::EnsEMBL::Slice->foo() method")
+  Description: Prints a debug message on the standard error console
+               if the verbosity has not been swithed off
+  Returntype : none
+  Exceptions : none
+  Caller     : test scripts
+
+=cut
+
 sub debug {
   if( $::verbose ) {
     print STDERR @_,"\n";
   }
 }
+
+=head2 count_rows
+
+  Arg [1]    : Bio::EnsEMBL::DBSQL::DBAdaptor $dba
+  Arg [2]    : string $tablename
+  Example    : count_rows($human_dba, "gene");
+  Description: Returns the number of rows in the table $tablename
+  Returntype : int
+  Exceptions : none
+  Caller     : test scripts
+
+=cut
 
 sub count_rows {
   my $db = shift;
@@ -66,5 +120,3 @@ sub count_rows {
 }
 
 1;
-
-    
