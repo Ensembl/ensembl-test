@@ -1,6 +1,6 @@
 README for ensembl-test
 
-19 October 2001
+1 August 2002
 
 
 This directory serves a different purpose to the t/ subdirectories
@@ -8,16 +8,7 @@ within each module and DOES NOT replace them or supersede them in any
 way.
 
 This directory contains what could best be called test/integrity
-code.  In more detail..
-
-
-ensembl-test/integrity-tests/
-
-A dir which will contain a test harness to run some sanity
-checks on the core database, post-Genebuild - more on this
-below.  This has almost the same framework as the /t directory
-in the core ensembl code, but a different purpose.
-
+code. In more detail ...
 
 ensembl-test/test-genome/
 
