@@ -45,9 +45,22 @@ sub new {
   # go and grab the current directory and store it away
   my ($package,$file, $line) = caller;
   my $curr_dir = dirname($file)."/";
+  $curr_dir = "./" . $curr_dir unless ($curr_dir =~ /^\// || $curr_dir =~ /^\.\.?\//);
 
   $self->curr_dir($curr_dir);
 
+  if (! -e $self->curr_dir . "CLEAN.t") {
+    my $package = __FILE__;
+    my $package_path = dirname($package)."/";
+    my $clean_file = $package_path . "CLEAN.t";
+
+    unless (system("cp $clean_file $curr_dir") == 0) {
+      warn "Could not copy $clean_file in $curr_dir\n";
+    }
+  }
+
+
+  
   unless($species) {
     $species = $DEFAULT_SPECIES;
   }
@@ -81,7 +94,6 @@ sub load_config {
   my $self = shift;
 
   my $conf = $self->curr_dir . $self->species . $FROZEN_CONF_EXT;
-  $conf = "./" . $conf unless ($conf =~ /^\//);
   eval {
     $self->{'conf'} = do $conf; #reads file into $self->{'conf'}
   };
@@ -167,16 +179,9 @@ sub load_databases {
   print STDERR "\nTrying to load [$self->{'species'}] databases\n";
   #create database from conf and from zip files 
   my $conf_file = $self->curr_dir . $CONF_FILE;
-  $conf_file = "./". $conf_file unless ($conf_file =~ /^\//);
-#  system("cat $f > /tmp/catabel");
-#  my $db_conf = do $self->curr_dir . $CONF_FILE;
+
   my $db_conf = do $conf_file;
-#  print STDERR "DB_CONF_FILE:  ",$self->curr_dir . $CONF_FILE,"\n";
-#  print STDERR "DB_CONF:  ",$db_conf->{'zip'},"\n";
-#  foreach my $k (keys %{$db_conf}) {
-#    print STDERR $k," ",$db_conf->{$k},"\n";
-#  }
-#  die;
+
   my $port   = $db_conf->{'port'};
   my $driver = $db_conf->{'driver'};
   my $host   = $db_conf->{'host'};
@@ -653,6 +658,7 @@ sub cleanup {
     unlink $conf_file;
     print STDERR "Deleted $conf_file\n";
   }
+
 }
 
 
