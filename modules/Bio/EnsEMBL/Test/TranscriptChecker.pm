@@ -13,12 +13,28 @@
 
 =head1 NAME
 
-Bio::EnsEMBL::Test::TranscriptChecker - Module to check the validity of
-a transcript
+Bio::EnsEMBL::Test::TranscriptChecker 
+
 
 =head1 SYNOPSIS
+Module to check the validity of a transcript
 
 =head1 DESCRIPTION
+Performs various checks on a Bio::EnsEMBL::Transcript object. These include:
+  1. Transcripts with no exons
+  2. Transcripts with more than a specified maximum number of exons
+  3. Exon rank ordering is correct
+  4. Exons don't overlap or contain other exons
+  5. Transcript translates
+  6. Translation is longer than a specified minimum length
+  7. Short or long introns
+  8. Introns with non GT .. AG splice sites
+  9. Short or long exons
+ 10. ATG immediately after 5' UTR (warning)
+ 11. There are supporting features for every exon 
+
+This class does not use stable_ids but instead dbIDs because stable_ids are
+not set until after the gene build.
 
 =head1 CONTACT
 
@@ -365,29 +381,29 @@ sub print_raw_data {
   my $sgp_type = $self->adaptor->static_golden_path_type;
 
   my $q = qq(
-  SELECT e.exon_id,
-         if(sgp.raw_ori=1,(e.seq_start-sgp.raw_start+sgp.chr_start), 
-            (sgp.chr_start+sgp.raw_end-e.seq_end)) as start,
-         if(sgp.raw_ori=1,(e.seq_end-sgp.raw_start+sgp.chr_start), 
-            (sgp.chr_start+sgp.raw_end-e.seq_start)) as end,
-         if (sgp.raw_ori=1,e.strand,(-e.strand)) as strand,
-         sgp.chr_name,
-         abs(e.seq_end-e.seq_start)+1 as length,
-         et.rank,
-         if(e.exon_id=tl.start_exon_id, (concat(tl.seq_start," (start)",
-            if(e.exon_id=tl.end_exon_id,(concat(" ",tl.seq_end," (end)")),
-            ("")))),if (e.exon_id=tl.end_exon_id,
-            (concat(tl.seq_end," (end)")),(""))) as transcoord,
-         if(e.sticky_rank>1,(concat("sticky (rank = ",e.sticky_rank,")")),
-            ("")) as sticky
-   FROM  translation tl, exon e, transcript tr, exon_transcript et, 
-         static_golden_path sgp
-   WHERE e.exon_id=et.exon_id AND
-         et.transcript_id=tr.transcript_id AND
-         sgp.raw_id=e.contig_id AND sgp.type = '$sgp_type' AND
-         tr.transcript_id = $dbId AND
-         tr.translation_id=tl.translation_id
-   ORDER BY et.rank
+    SELECT e.exon_id,
+           if(sgp.raw_ori=1,(e.seq_start-sgp.raw_start+sgp.chr_start), 
+              (sgp.chr_start+sgp.raw_end-e.seq_end)) as start,
+           if(sgp.raw_ori=1,(e.seq_end-sgp.raw_start+sgp.chr_start), 
+              (sgp.chr_start+sgp.raw_end-e.seq_start)) as end,
+           if (sgp.raw_ori=1,e.strand,(-e.strand)) as strand,
+           sgp.chr_name,
+           abs(e.seq_end-e.seq_start)+1 as length,
+           et.rank,
+           if(e.exon_id=tl.start_exon_id, (concat(tl.seq_start," (start)",
+              if(e.exon_id=tl.end_exon_id,(concat(" ",tl.seq_end," (end)")),
+              ("")))),if (e.exon_id=tl.end_exon_id,
+              (concat(tl.seq_end," (end)")),(""))) as transcoord,
+           if(e.sticky_rank>1,(concat("sticky (rank = ",e.sticky_rank,")")),
+              ("")) as sticky
+     FROM  translation tl, exon e, transcript tr, exon_transcript et, 
+           static_golden_path sgp
+     WHERE e.exon_id=et.exon_id AND
+           et.transcript_id=tr.transcript_id AND
+           sgp.raw_id=e.contig_id AND sgp.type = '$sgp_type' AND
+           tr.transcript_id = $dbId AND
+           tr.translation_id=tl.translation_id
+     ORDER BY et.rank
   );
   my $sth = $self->adaptor->prepare($q) || $self->throw("can't prepare: $q");
   my $res = $sth->execute || $self->throw("can't execute: $q");
