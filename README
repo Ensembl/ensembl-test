@@ -1,6 +1,6 @@
 README for ensembl-test
 
-1 October 2001
+19 October 2001
 
 
 This directory serves a different purpose to the t/ subdirectories
@@ -11,15 +11,15 @@ This directory contains what could best be called test/integrity
 code.  In more detail..
 
 
-ensembl-test/integrity-tests
+ensembl-test/integrity-tests/
 
 A dir which will contain a test harness to run some sanity
 checks on the core database, post-Genebuild - more on this
-below.  This has the same framework as the /t directory in
-the core ensembl code.
+below.  This has almost the same framework as the /t directory
+in the core ensembl code, but a different purpose.
 
 
-ensembl-test/test-genome
+ensembl-test/test-genome/
 
 A dir which will contain the scripts/sql to perform a run of
 the raw and Genebuild pipelines on a cut-down (2Mbps) test
@@ -62,6 +62,7 @@ There may be other things that might be worth checking for,
 so any input would be useful.  There may be other wee
 problems that have been encountered which could be checked
 for.
+
 
 Feeback, comments etc...
 
