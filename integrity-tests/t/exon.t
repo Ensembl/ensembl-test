@@ -18,12 +18,7 @@
 
 # exon.t - tests for exons
 
-# Currently, the only important test performed is a check that the
-# supporting hit for an exon fragment is not outrageously larger than
-# the supported exon fragment. More code will be added soon.
-#
-# Note: sticky exons are ignored at the moment.
-
+# Note: sticky exons are not tested. They should be!
 
 ## We start with some black magic to print on failure.
 BEGIN { $| = 1; print "1..3\n"; 
@@ -36,54 +31,75 @@ use EnsIntegrityDBAdaptor;
 $loaded = 1;
 print "ok 1\n";		# 1st test passes.
 
-# fail when exon evidence length exceeds feature length by this number
-# of bases:
+# Test 3 fails when evidence length exceeds feature length by this many bases:
 my $margin = 40;	# No special provision is made for protein evidence.
-			# This just means that protein evidence that
-			# is up to approx. 3 times too long will slip
-			# through our net!
+			# This just means that protein evidence that is up to
+			# approx. 3 times too long will slip through our net!
 
 my $db = EnsIntegrityDBAdaptor->new();
 print "ok 2\n";		# 2nd test passes.
 
-my $failed = "false";	# "true" if main test fails.
-my @clone_ids = $db->get_all_Clone_id;
+my $first_loop_test = 3;	# Test 3 is the first test in the main loop.
+my $current_loop_test = $first_loop_test;	# Current test in main loop.
+my @failed;	# For tests in main loop, failed[i] is "true" if test i failed.
 
-OUTER:
-foreach my $clone_id (@clone_ids)
+my @contig_ids = $db->get_all_Contig_id;
+
+# Store all nonsticky exons, in a hash of arrays, keyed by contig ID.
+my %nonsticky_exons;
+foreach my $contig_id (@contig_ids)
 {
-    my $clone = $db->get_Clone($clone_id);
-    my @contigs = $clone->get_all_Contigs;
-    foreach my $contig (@contigs)
+    $nonsticky_exons{$contig_id} = [ () ];
+    my $contig = $db->get_Contig($contig_id);	# non-virtual contig object
+    my @current_exons = $contig->get_all_Exons;
+    foreach my $exon (@current_exons)
     {
-        my @genes = $contig->get_all_Genes;
-        foreach my $gene (@genes)
-        {
-            my @exons = $gene->each_unique_Exon;
-            foreach my $exon (@exons)
-            {
-                if (!($exon->isa('Bio::EnsEMBL::StickyExon')))
-                {
-		    $db->gene_Obj->get_supporting_evidence_direct($exon);
-                    my @features = $exon->each_Supporting_Feature;
-                    foreach my $feature (@features)
-                    {
-                        my $exon_bases_hit = $feature->length;
-                        my $hit_bases_hit = $feature->hend - $feature->hstart;
-			if ($hit_bases_hit > ($exon_bases_hit + $margin))
-			{
-			    print "not ok 3\n";
-			    $failed = "true";
-			    last OUTER;
-			}
-                    }
-                }
-            }
-        }
+	unless ($exon->isa('Bio::EnsEMBL::StickyExon'))
+	{
+	    push @{ $nonsticky_exons{$contig_id} }, $exon;
+	}
     }
 }
 
-if ($failed eq "false")
+# Main test loop. Failure does not prompt early exit, since there are
+# several tests and we want to know whether each of these passes or fails.
+
+foreach my $contig_id (@contig_ids)
 {
-    print "ok 3\n";
+    foreach my $exon (@{ $nonsticky_exons{$contig_id} })
+    {
+	# Test 3: supporting evidence mustn't be much
+	# longer than the evidence it supports.
+	$db->gene_Obj->get_supporting_evidence_direct($exon);
+	my @features = $exon->each_Supporting_Feature;
+	foreach my $feature (@features)
+	{
+	    my $exon_bases_hit = $feature->length;
+	    my $hit_bases_hit = $feature->hend - $feature->hstart;
+	    if ($hit_bases_hit > ($exon_bases_hit + $margin))
+	    {
+		$failed[$current_loop_test++] = "true";
+	    }
+	}
+
+	# Test 4: exon length must be at least 3.
+	if ($exon->length < 3)
+	{
+	    $failed[$current_loop_test++] = "true";
+	}
+    }
+}
+
+# Report on test results from main loop.
+
+for my $i ($first_loop_test .. $#failed)
+{
+    if ($failed[$i])
+    {
+	print "not ok $i\n";
+    }
+    else
+    {
+	print "ok $i\n";
+    }
 }
