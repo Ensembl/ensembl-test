@@ -38,9 +38,9 @@ print "ok 1\n";		# 1st test passes.
 TestSupport::zero_count_test("
     select count(*)
     from   exon_transcript et1, exon_transcript et2, exon e1, exon e2
-    where  et1.exon = e1.id and et2.exon = e2.id
-      and  et1.transcript = et2.transcript
+    where  et1.exon_id = e1.exon_id and et2.exon_id = e2.exon_id
+      and  et1.transcript_id = et2.transcript_id
       and  et2.rank = et1.rank + 1
-      and  e1.contig = e2.contig
+      and  e1.contig_id = e2.contig_id
       and  (e1.strand * e1.seq_start) >= (e1.strand * e2.seq_start)
     ", 2);
