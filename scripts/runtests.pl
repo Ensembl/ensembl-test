@@ -141,6 +141,7 @@ sub get_all_tests {
 
 sub usage {
   print "usage:\n";
-  print "\tlist tests:        run_tests.pl -l [<testfiles or dirs> ...]\n";
-  print "\trun tests:         run_tests.pl [<testfiles or dirs> ...]\n";
+  print "\tlist tests:             run_tests.pl -l [<testfiles or dirs> ...]\n";
+  print "\trun tests:              run_tests.pl [<testfiles or dirs> ...]\n";
+  print "\trun tests and clean up: run_tests.pl -c [<testfiles or dirs> ...]\n";
 }
