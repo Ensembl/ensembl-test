@@ -21,6 +21,8 @@
 # Currently, the only important test performed is a check that the
 # supporting hit for an exon fragment is not outrageously larger than
 # the supported exon fragment. More code will be added soon.
+#
+# Note: sticky exons are ignored at the moment.
 
 
 ## We start with some black magic to print on failure.
