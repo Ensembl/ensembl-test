@@ -21,7 +21,7 @@
 # Note: sticky exons are not tested. They should be!
 
 ## We start with some black magic to print on failure.
-BEGIN { $| = 1; print "1..5\n"; 
+BEGIN { $| = 1; print "1..6\n"; 
 	use vars qw($loaded); }
 END {print "not ok 1\n" unless $loaded;}
 
