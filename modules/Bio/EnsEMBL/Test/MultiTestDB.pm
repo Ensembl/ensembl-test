@@ -198,7 +198,7 @@ sub load_databases {
   $self->{'conf'} = {};
 
   #connect to the database
-  my $locator = "DBI:".$driver.":host=".$host.";port=".$port;
+  my $locator = "DBI:".$driver.":host=".$host.";port=".$port . ";mysql_local_infile=1";
   my $db = DBI->connect($locator, $user, $pass, {RaiseError => 1});
 
   unless($db) {
