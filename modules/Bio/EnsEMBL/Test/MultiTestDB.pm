@@ -15,15 +15,14 @@
 
 package Bio::EnsEMBL::Test::MultiTestDB;
 
+use strict;
 use vars qw(%ENV);
 
 use Bio::EnsEMBL::Utils::Exception qw( warning throw );
 use File::Basename;
-
-use strict;
-
 use DBI;
 use Data::Dumper;
+use POSIX qw(strftime);
 
 $| = 1;
 
@@ -599,15 +598,13 @@ sub curr_dir {
 sub _create_db_name {
     my( $self, $dbtype ) = @_;
 
-    my @t_info = localtime;
-
-    my $date = join ( "_", $t_info[3],$t_info[4]+1);  
-    my $time = join ( "", $t_info[2],$t_info[1],$t_info[0]);  
+    my $date = strftime "%Y%m%d", localtime;
+    my $time = strftime "%H%M%S", localtime;
 
     my $species = $self->species;
 
     # create a unique name using host and date / time info
-    my $db_name = "_test_db_${species}_${dbtype}_".$ENV{'USER'}."_".$date."_".$time;
+    my $db_name = $ENV{'USER'}."_test_db_${species}_${dbtype}_".$date."_".$time;
 
     return $db_name;
 }
