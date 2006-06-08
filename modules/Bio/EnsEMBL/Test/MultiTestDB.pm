@@ -495,6 +495,7 @@ sub restore {
   }
 }
 
+
 =head2 save
 
   Arg [1]    : string $dbtype
@@ -544,6 +545,53 @@ sub save {
     else {
       warning("hidden table '$hidden_name' does not exist so saving is not possible\n");
     }
+  }
+}
+
+
+=head2 save_permanent
+
+  Arg [1]    : string $dbtype
+               The type of the database containing the hidden/saved table
+  Arg [2-N]  : string $table
+               The name of the table to save
+  Example    : $multi_test_db->save_permanent('core', 'gene', 'transcript');
+  Description: Saves the contents of specific table(s) in the specified db.
+               The backup tables are not deleted by restore() or cleanup(), so
+               this is mainly useful for debugging.
+  Returntype : none
+  Exceptions : thrown if the adaptor for dbtype is not available
+               warning if a table cannot be copied if the hidden table does not 
+               exist
+  Caller     : general
+
+=cut
+
+sub save_permanent {
+  my ($self, $dbtype, @tables) = @_;
+
+  unless($dbtype && @tables) {
+    die("dbtype and table args must be defined\n");
+  }
+
+  my $adaptor = $self->get_DBAdaptor($dbtype);
+
+  unless($adaptor) {
+    die "adaptor for $dbtype is not available\n";
+  }
+
+  $self->{'conf'}->{$dbtype}->{'_counter'}++;
+
+  foreach my $table (@tables) {
+
+    my $hidden_name = "_bak_$table"."_".$self->{'conf'}->{$dbtype}->{'_counter'};
+
+    my $sth =
+      $adaptor->dbc->prepare("CREATE TABLE $hidden_name " .
+                        "SELECT * FROM $table");
+
+    $sth->execute();
+    $sth->finish();
   }
 }
 
