@@ -293,8 +293,9 @@ sub load_databases {
           $sql_com .= $_;
         }
         $sql_com =~ s/;$//; # chop off the last ;
-
-        $db->do($sql_com);
+        foreach my $this_sql_com (split(";", $sql_com)) {
+          $db->do($this_sql_com);
+        }
 
         close FILE;
 
