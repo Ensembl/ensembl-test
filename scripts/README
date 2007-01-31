@@ -1,60 +1,68 @@
-
-This directory contains a script "runtests.pl" that is used to run a set 
+This directory contains a script "runtests.pl" that is used to run a set
 of test (*.t extension files) present in the directory given as argument
 (see example below)
 
 Example of set of tests currently in use can be found e.g. in
 ensembl/modules/t or ensembl-compara/modules/t
 
-In order to run the tests, you MUST have a MultiTestDB.conf file in the 
-directory where the set of tests to be run are present.
-You have an MultiTestDB.conf.example in the current directory that can be
-copied to the right place and updated at your convinience.
-The file gives the information (username, host, etc.) for a mysql
-instance where you have write permission.
-Running test case(s) which require a database will automatically create
-a temporary database during the test(s) execution.
-In case you want to remove the temporary database after all tests, use the -c 
-option.
+In order to run the tests, you MUST have a MultiTestDB.conf file in the
+directory where the set of tests to be run are present.  You have an
+MultiTestDB.conf.example in the current directory that can be copied to
+the right place and updated at your convinience.  The file gives the
+information (username, host, etc.) for a MySQL instance where you have
+write permission.  Running test case(s) which require a database will
+automatically create a temporary database during the test(s) execution.
+In case you want to remove the temporary database after all tests, use
+the -c command line switch.
 
-To use the tests you must add the ensembl-test modules to your PERL5LIB 
+To use the tests you must add the ensembl-test modules to your PERL5LIB
 environment variable.
 
 Example:
 
-setenv PERL5LIB ${PERL5LIB}:${ENSHOME}/ensembl-test/modules
-or
-PERL5LIB=$PERL5LIB:${ENSHOME}/ensembl-test/modules
+    setenv PERL5LIB ${PERL5LIB}:${ENSHOME}/ensembl-test/modules
+
+or, for bash,
+
+    export PERL5LIB=$PERL5LIB:${ENSHOME}/ensembl-test/modules
 
 To run multiple tests use the runtests.pl script in ensembl-test/scripts
 
 Examples:
 
-#run all tests in the t directory
-runtests.pl t
+    Run all tests in the t directory
 
-#run 3 tests
-runtests.pl t/gene.t t/exon.t t/densityFeature.t
+        runtests.pl t
 
-#run a single test
-runtests.pl t/gene.t
+    Run 3 tests
 
-#run all tests in the current directory
-runtests.pl
+        runtests.pl t/gene.t t/exon.t t/densityFeature.t
 
-#run all tests in the current directory and clean up
-runtests.pl -c
+    Run a single test
 
-The ensembl-test module use standard perl libraries from which you can get some information
+        runtests.pl t/gene.t
 
-perldoc Test
-perldoc Test::Harness
+    Run all tests in the current directory
 
-Have also a look at 
+        runtests.pl
 
-perldoc Bio::EnsEMBL::Test::MultiTestDB
-perldoc Bio::EnsEMBL::Test::TestUtils
+    Run all tests in the current directory and clean up
 
-There are also extra information more specific to a particular cvs repository in e.g.
-ensembl/module/t/README
-ensembl-compara/module/t/README
+        runtests.pl -c
+
+The ensembl-test module use standard perl libraries from which you can
+get some information
+
+    perldoc Test
+    perldoc Test::Harness
+
+Have also a look at
+
+    perldoc Bio::EnsEMBL::Test::MultiTestDB
+    perldoc Bio::EnsEMBL::Test::TestUtils
+
+There are also extra information more specific to a particular CVS
+repository in e.g.
+
+    ensembl/module/t/README
+    ensembl-compara/module/t/README
