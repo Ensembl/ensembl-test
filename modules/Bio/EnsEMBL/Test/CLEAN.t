@@ -15,8 +15,8 @@ $| = 1;
 print("# Starting database and files cleaning up...\n");
 
 my $curr_file = __FILE__;
-my $curr_dir  = dirname($curr_file) . "/";
-my $conf_file = $curr_dir . CONF_FILE;
+my $curr_dir  = dirname($curr_file);
+my $conf_file = $curr_dir . '/' . CONF_FILE;
 
 if ( $conf_file =~ m#^/# ) {
     # The configuration file is in the current directory.
