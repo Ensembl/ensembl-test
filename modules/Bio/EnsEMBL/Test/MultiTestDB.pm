@@ -1,4 +1,4 @@
- 
+package Bio::EnsEMBL::Test::MultiTestDB;
 
 =pod
 
@@ -13,358 +13,399 @@
 
 =cut
 
-package Bio::EnsEMBL::Test::MultiTestDB;
-
 use strict;
-use vars qw(%ENV);
+use warnings;
 
-use Bio::EnsEMBL::Utils::Exception qw( warning throw );
-use File::Basename;
 use DBI;
 use Data::Dumper;
+use File::Basename;
+use IO::File;
 use POSIX qw(strftime);
+
+use Bio::EnsEMBL::Utils::Exception qw( warning throw );
 
 $| = 1;
 
-#homo sapiens is used if no species is specified
-my $DEFAULT_SPECIES  = 'homo_sapiens';
+use constant {
+    # Homo sapiens is used if no species is specified
+    DEFAULT_SPECIES => 'homo_sapiens',
 
-#configuration file extension appended onto species name
-my $FROZEN_CONF_EXT  = '.MultiTestDB.frozen.conf';
+    # Configuration file extension appended onto species name
+    FROZEN_CONF_SUFFIX => 'MultiTestDB.frozen.conf',
 
-my $CONF_FILE    = 'MultiTestDB.conf';
+    CONF_FILE => 'MultiTestDB.conf',
+    DUMP_DIR  => 'test-genome-DBs'
+};
 
-my $DUMP_DIR = 'test-genome-DBs';
+sub new
+{
+    my ( $class, $species ) = @_;
 
-sub new {
-  my( $pkg, $species ) = @_;
-        
-  my $self = bless {}, $pkg;
+    my $self = bless {}, $class;
 
-  # go and grab the current directory and store it away
-  my ($package,$file, $line) = caller;
-  my $curr_dir = dirname($file)."/";
-  $curr_dir = "./" . $curr_dir unless ($curr_dir =~ /^\// || $curr_dir =~ /^\.\.?\//);
+    # Go and grab the current directory and store it away
+    my ( $package, $file, $line ) = caller;
 
-  $self->curr_dir($curr_dir);
+    my $curr_dir = dirname($file);
 
-  if (! -e $self->curr_dir . "CLEAN.t") {
-    my $package = __FILE__;
-    my $package_path = dirname($package)."/";
-    my $clean_file = $package_path . "CLEAN.t";
+    $self->curr_dir($curr_dir);
 
-    unless (system("cp $clean_file $curr_dir") == 0) {
-      warn "Could not copy $clean_file in $curr_dir\n";
+    if ( !-e $self->curr_dir() . '/CLEAN.t' ) {
+        my $clean_file = sprintf( "%s/CLEAN.t", dirname(__FILE__) );
+
+        if ( system( 'cp', $clean_file, $curr_dir ) ) {
+            warn "Could not copy $clean_file to $curr_dir\n";
+        }
     }
-  }
 
+    if ( !defined $species ) {
+        $species = DEFAULT_SPECIES;
+    }
 
-  
-  unless($species) {
-    $species = $DEFAULT_SPECIES;
-  }
+    $self->species($species);
 
-  $self->species($species);
+    if (
+        -e sprintf( "%s/%s.%s", $curr_dir, $species,
+            FROZEN_CONF_SUFFIX ) )
+    {
+        $self->load_config();
+    } else {
+        # Load the databases and generate the conf hash
+        $self->load_databases();
 
+        # Freeze configuration in a file
+        $self->store_config();
+    }
 
-  if ( -e $self->curr_dir . $species . $FROZEN_CONF_EXT) {
-    $self->load_config;
-  }
-  else {
-    #load the databases and generate the conf hash
-    $self->load_databases;
+    # Generate the db_adaptors from the $self->{'conf'} hash
+    $self->create_adaptors();
 
-    #freeze configuration in a file
-    $self->store_config;
-  }
-
-
-  #generate the db_adaptors from the $self->{'conf'} hash
-  $self->create_adaptors;
-
-  return $self;
-} 
-
-
-#
-# load config into $self->{'conf'} hash
-#
-sub load_config {
-  my $self = shift;
-
-  my $conf = $self->curr_dir . $self->species . $FROZEN_CONF_EXT;
-  eval {
-    $self->{'conf'} = do $conf; #reads file into $self->{'conf'}
-  };
-    
-  if($@) {
-    die("Could not read frozen configuration file '$conf'\n");
-  }
+    return $self;
 }
 
-
-
 #
-# Store $self->{'config'} hash into a file
+# Load config into $self->{'conf'} hash
 #
-sub store_config {
-  my $self = shift;
+sub load_config
+{
+    my $self = shift;
 
-  my $conf = $self->curr_dir . $self->species . $FROZEN_CONF_EXT;
+    my $conf = sprintf( "%s/%s.%s",
+        $self->curr_dir(), $self->species(), FROZEN_CONF_SUFFIX );
 
-  local *FILE;
-
-  open(FILE, ">$conf") or die "Could not open config file ".$conf."\n";
-
-  my $string = Dumper($self->{'conf'});
-
-  #strip off leading '$VAR1 = '
-  $string =~ s/^[\$]VAR1\s*=//;
-
-  #store config in file
-  print FILE $string;
-  
-  close FILE;
-}
-
-
-
-#create a set of adaptors based on the $self->{'conf'} hash
-sub create_adaptors {
-  my $self = shift;
-
-  #establish a connection to each of the databases in the configuration
-  foreach my $dbtype (keys %{$self->{'conf'}}) {
-
-    my $db = $self->{'conf'}->{$dbtype};
-    my $adaptor;
-    my $module = $db->{'module'};
-
-    #try to instantiate an adaptor for this database 
     eval {
-
-      # require needs /'s rather than colons
-      if ( $module =~ /::/ ) {
-	$module =~ s/::/\//g;
-      }
-      require "${module}.pm";
-
-      # but switch back for the new instantiation
-      $module =~ s/\//::/g;
-
-      $adaptor = $module->new(-dbname => $db->{'dbname'},
-			      -user   => $db->{'user'},
-			      -pass   => $db->{'pass'},
-			      -port   => $db->{'port'},
-			      -host   => $db->{'host'},
-			      -driver => $db->{'driver'},
-			      -species => $self->{'species'});
+        # Read file into $self->{'conf'}
+        $self->{'conf'} = do $conf;
     };
-	
+
     if ($@) {
-      warning("WARNING: Could not instantiate $dbtype DBAdaptor:\n$@");
-    } else {
-      $self->{'db_adaptors'}->{$dbtype} = $adaptor;
+        die("Could not read frozen configuration file '$conf'\n");
     }
-  }
 }
 
+#
+# Store $self->{'conf'} hash into a file
+#
+sub store_config
+{
+    my $self = shift;
 
+    my $conf = sprintf( "%s/%s.%s",
+        $self->curr_dir(), $self->species(), FROZEN_CONF_SUFFIX );
 
+    my $fh = IO::File->new(">$conf")
+      or die "Could not open config file '$conf'\n";
 
+    my $string = Dumper( $self->{'conf'} );
 
-sub load_databases {
-  my ($self) = shift;
+    # strip off leading '$VAR1 = '
+    $string =~ s/^[\$]VAR1\s*=//;
 
-  print STDERR "\nTrying to load [$self->{'species'}] databases\n";
-  #create database from conf and from zip files 
-  my $conf_file = $self->curr_dir . $CONF_FILE;
+    # store config in file
+    $fh->print($string);
 
-  if(! -e $conf_file) {
-    throw("Required conf file '$conf_file' does not exist");
-  }
+    $fh->close();
+}
 
-  my $db_conf = do $conf_file;
+#
+# Create a set of adaptors based on the $self->{'conf'} hash
+#
+sub create_adaptors
+{
+    my $self = shift;
 
-  my $port   = $db_conf->{'port'};
-  my $driver = $db_conf->{'driver'};
-  my $host   = $db_conf->{'host'};
-  my $pass   = $db_conf->{'pass'};
-  my $user   = $db_conf->{'user'};
-  my $zip    = $db_conf->{'zip'};
+    # Establish a connection to each of the databases in the
+    # configuration
+    foreach my $dbtype ( keys %{ $self->{'conf'} } ) {
 
-  #create a config hash which will be frozen to a file
-  $self->{'conf'} = {};
+        my $db = $self->{'conf'}->{$dbtype};
+        my $adaptor;
+        my $module = $db->{'module'};
 
-  #connect to the database
-  my $locator = "DBI:".$driver.":host=".$host.";port=".$port . ";mysql_local_infile=1";
-  my $db = DBI->connect($locator, $user, $pass, {RaiseError => 1});
+        #try to instantiate an adaptor for this database
+        eval {
 
-  unless($db) {
-    warning("Can't connect to database $locator");
-    return;
-  }
+            # require needs /'s rather than colons
+            if ( $module =~ /::/ ) {
+                $module =~ s/::/\//g;
+            }
+            require $module . '.pm';
 
-  #only unzip if there are non-preloaded datbases
- UNZIP: foreach my $dbtype (keys %{$db_conf->{'databases'}->{$self->{'species'}}}) {
-    if (( ! exists $db_conf->{'preloaded'}->{$self->{'species'}}->{$dbtype} ) ||
-        ( ! _db_exists( $db, $db_conf->{'preloaded'}->{$self->{'species'}}->{$dbtype}) )) {
-      #unzip database files
-      $self->unzip_test_dbs($self->curr_dir . $zip);
-      last UNZIP;
+            # but switch back for the new instantiation
+            $module =~ s/\//::/g;
+
+            $adaptor = $module->new(
+                -dbname  => $db->{'dbname'},
+                -user    => $db->{'user'},
+                -pass    => $db->{'pass'},
+                -port    => $db->{'port'},
+                -host    => $db->{'host'},
+                -driver  => $db->{'driver'},
+                -species => $self->{'species'}
+            );
+        };
+
+        if ($@) {
+            warning(
+                "WARNING: Could not instantiate $dbtype DBAdaptor:\n$@"
+            );
+        } else {
+            $self->{'db_adaptors'}->{$dbtype} = $adaptor;
+        }
     }
-  }
+}
 
-  #create a database for each database specified
-  foreach my $dbtype (keys %{$db_conf->{'databases'}->{$self->{'species'}}}) {
-    #copy the general config into a dbtype specific config 
-    $self->{'conf'}->{$dbtype} = {};
-    %{$self->{'conf'}->{$dbtype}} = %$db_conf;
-    $self->{'conf'}->{$dbtype}->{'module'} = $db_conf->{'databases'}->{$self->{'species'}}->{$dbtype};
+sub load_databases
+{
+    my ($self) = shift;
 
-    # it's not necessary to store the databases and zip bits of info
-    delete $self->{'conf'}->{$dbtype}->{'databases'};
-    delete $self->{'conf'}->{$dbtype}->{'zip'};
+    print "# Trying to load [$self->{'species'}] databases\n";
 
-    #don't create a database if there is a preloaded one specified
-    if (( $db_conf->{'preloaded'}->{$self->{'species'}}->{$dbtype} ) &&
-        ( _db_exists( $db,$db_conf->{'preloaded'}->{$self->{'species'}}->{$dbtype} ))) {
+    # Create database from conf and from zip files
+    my $conf_file = sprintf( "%s/%s", $self->curr_dir(), CONF_FILE );
 
-      #store the temporary database name in the dbtype specific config
-      $self->{'conf'}->{$dbtype}->{'dbname'} = $db_conf->{'preloaded'}->{$self->{'species'}}->{$dbtype};
-      $self->{'conf'}->{$dbtype}->{'preloaded'} = 1;
-    } else {
+    if ( !-e $conf_file ) {
+        throw("Required conf file '$conf_file' does not exist");
+    }
 
-      #create a unique random dbname    
-      my $dbname = $db_conf->{'preloaded'}->{$self->{'species'}}->{$dbtype};
-      if ( ! defined $dbname ) {
-        $dbname = $self->_create_db_name($dbtype);
-        delete $self->{'conf'}->{$dbtype}->{'preloaded'};
-      } else {
-        $self->{'conf'}->{$dbtype}->{'preloaded'} = 1;
-      }
+    my $db_conf = do $conf_file;
 
-      #store the temporary database name in the dbtype specific config
-      $self->{'conf'}->{$dbtype}->{'dbname'} = $dbname;
+    my $port   = $db_conf->{'port'};
+    my $driver = $db_conf->{'driver'};
+    my $host   = $db_conf->{'host'};
+    my $pass   = $db_conf->{'pass'};
+    my $user   = $db_conf->{'user'};
+    my $zip    = $db_conf->{'zip'};
 
-      print STDERR "\nCreating db $dbname";
-      
-      unless($db->do("CREATE DATABASE $dbname")) {
-        warning("Could not create database [$dbname]");
+    # Create a config hash which will be frozen to a file
+    $self->{'conf'} = {};
+
+    # Connect to the database
+    my $locator =
+        "DBI:" . $driver . ":host=" . $host . ";port=" . $port
+      . ";mysql_local_infile=1";
+    my $db =
+      DBI->connect( $locator, $user, $pass, { RaiseError => 1 } );
+
+    if ( !$db ) {
+        warning("Can't connect to database $locator");
         return;
-      }
-
-      #copy the general config into a dbtype specific config 
-
-      $db->do("use $dbname");
-    
-      #load the database with data
-      my $dir = $self->curr_dir . "$DUMP_DIR/".$self->species."/$dbtype";
-      local *DIR;
-
-      unless(opendir(DIR, $dir)) {
-        warning("could not open dump directory '$dir'");
-        return;
-      }
-
-      my @files = readdir DIR;
-
-      local *FILE;
-
-      #read in table creat statements from *.sql files and process them with DBI
-
-      foreach my $sql_file (grep /\.sql$/, @files) {
-	
-        $sql_file = "$dir/$sql_file";
-	
-        unless(-f $sql_file && -r $sql_file) {
-          warning("could not read SQL file '$sql_file'\n");
-          next;
-        }
-
-        open(FILE, $sql_file);
-	
-        my $sql_com ='';
-	
-        while (<FILE>) {
-          next if ( /^#/ );  # ignore comments
-          next unless ( /\S/ ); # ignore lines of white spaces
-
-          $sql_com .= $_;
-        }
-        $sql_com =~ s/;$//; # chop off the last ;
-        foreach my $this_sql_com (split(";", $sql_com)) {
-          $db->do($this_sql_com);
-        }
-
-        close FILE;
-
-        #import data from the txt files of the same name
-        $sql_file  =~ /.*\/(.*)\.sql/;
-        my $tablename = $1;
-
-        (my $txt_file = $sql_file) =~ s/\.sql$/\.txt/;
-
-        unless(-f $txt_file && -r $txt_file) {
-          warning("could not read data file '$txt_file'\n");
-          next;
-        }
-
-        $db->do( "load data local infile '$txt_file' into table $tablename" );
-
-      }
     }
-    print STDERR "\n";
-    closedir DIR;
 
-  }
+    # Only unzip if there are non-preloaded datbases
+  UNZIP:
+    foreach my $dbtype (
+        keys %{ $db_conf->{'databases'}->{ $self->{'species'} } } )
+    {
+        if (
+            (
+                !exists $db_conf->{'preloaded'}->{ $self->{'species'} }
+                ->{$dbtype}
+            )
+            || (
+                !_db_exists(
+                    $db,
+                    $db_conf->{'preloaded'}->{ $self->{'species'} }
+                      ->{$dbtype}
+                )
+            )
+          )
+        {
+            # Unzip database files
+            $self->unzip_test_dbs( $self->curr_dir() . '/' . $zip );
+            last UNZIP;
+        }
+    }
 
-  $db->disconnect;
+    #create a database for each database specified
+    foreach my $dbtype (
+        keys %{ $db_conf->{'databases'}->{ $self->{'species'} } } )
+    {
+        #copy the general config into a dbtype specific config
+        $self->{'conf'}->{$dbtype} = {};
+        %{ $self->{'conf'}->{$dbtype} } = %$db_conf;
+        $self->{'conf'}->{$dbtype}->{'module'} =
+          $db_conf->{'databases'}->{ $self->{'species'} }->{$dbtype};
 
+        # it's not necessary to store the databases and zip bits of info
+        delete $self->{'conf'}->{$dbtype}->{'databases'};
+        delete $self->{'conf'}->{$dbtype}->{'zip'};
+
+        #don't create a database if there is a preloaded one specified
+        if (
+            (
+                $db_conf->{'preloaded'}->{ $self->{'species'} }
+                ->{$dbtype}
+            )
+            && (
+                _db_exists(
+                    $db,
+                    $db_conf->{'preloaded'}->{ $self->{'species'} }
+                      ->{$dbtype}
+                )
+            )
+          )
+        {
+
+        #store the temporary database name in the dbtype specific config
+            $self->{'conf'}->{$dbtype}->{'dbname'} =
+              $db_conf->{'preloaded'}->{ $self->{'species'} }
+              ->{$dbtype};
+            $self->{'conf'}->{$dbtype}->{'preloaded'} = 1;
+        } else {
+
+            #create a unique random dbname
+            my $dbname =
+              $db_conf->{'preloaded'}->{ $self->{'species'} }
+              ->{$dbtype};
+            if ( !defined $dbname ) {
+                $dbname = $self->_create_db_name($dbtype);
+                delete $self->{'conf'}->{$dbtype}->{'preloaded'};
+            } else {
+                $self->{'conf'}->{$dbtype}->{'preloaded'} = 1;
+            }
+
+        #store the temporary database name in the dbtype specific config
+            $self->{'conf'}->{$dbtype}->{'dbname'} = $dbname;
+
+            print "# Creating database $dbname\n";
+
+            if ( !$db->do("CREATE DATABASE $dbname") ) {
+                warning("Could not create database [$dbname]");
+                return;
+            }
+
+            #copy the general config into a dbtype specific config
+
+            $db->do("USE $dbname");
+
+            # Load the database with data
+            my $dir = sprintf( "%s/%s/%s/%s",
+                $self->curr_dir(), DUMP_DIR,
+                $self->species(),  $dbtype );
+
+            local *DIR;
+
+            if ( !opendir( DIR, $dir ) ) {
+                warning("could not open dump directory '$dir'");
+                return;
+            }
+
+            my @files = readdir DIR;
+
+            # Read in table creat statements from *.sql files and
+            # process them with DBI
+
+            foreach my $sql_file ( grep /\.sql$/, @files ) {
+
+                $sql_file = "$dir/$sql_file";
+
+                my $fh = IO::File->new($sql_file);
+
+                if ( !defined $fh ) {
+                    warning("could not read SQL file '$sql_file'\n");
+                    next;
+                }
+
+                my $sql_com = '';
+
+                while ( defined( my $line = $fh->getline() ) ) {
+                    if ( $line =~ /^#/ || $line !~ /\S/ ) {
+                        # ignore comments and white-space lines
+                        next;
+                    }
+                    $sql_com .= $line;
+                }
+
+                $fh->close();
+
+                $sql_com =~ s/;$//;    # chop off the last ;
+
+                foreach my $this_sql_com ( split( /;/, $sql_com ) ) {
+                    $db->do($this_sql_com);
+                }
+
+                # import data from the txt files of the same name
+                $sql_file =~ m#.*/(.*)\.sql#;
+                my $tablename = $1;
+
+                ( my $txt_file = $sql_file ) =~ s/\.sql$/.txt/;
+
+                if ( !( -f $txt_file && -r $txt_file ) ) {
+                    warning("could not read data file '$txt_file'\n");
+                    next;
+                }
+
+                $db->do("LOAD DATA LOCAL INFILE '$txt_file' "
+                      . "INTO TABLE $tablename" );
+
+            }
+        }
+
+        closedir DIR;
+    }
+
+    $db->disconnect();
 }
 
+sub unzip_test_dbs
+{
+    my ( $self, $zipfile ) = @_;
 
-sub unzip_test_dbs {
-  my ($self, $zipfile) = @_;
-  
-  if (-e $self->curr_dir . $DUMP_DIR) {
-    warn($self->curr_dir . $DUMP_DIR ," already unpacked\n");
-    return;
-  }
+    if ( -e $self->curr_dir() . '/' . DUMP_DIR ) {
+        warn( $self->curr_dir() . '/' . DUMP_DIR,
+            " already unpacked\n" );
+        return;
+    }
 
-  unless($zipfile) {
-    throw("zipfile argument is required\n");
-  }
+    if ( !$zipfile ) {
+        throw("zipfile argument is required\n");
+    }
 
-  unless(-f $zipfile) {
-    warning("zipfile $zipfile could not be found\n");
-    return;
-  }
+    if ( !-f $zipfile ) {
+        warning("zipfile $zipfile could not be found\n");
+        return;
+    }
 
-  # unzip the zip file quietly
-
-  system ( "unzip -q $zipfile -d ". $self->curr_dir );
+    # Unzip the zip file quietly
+    system( 'unzip', '-q', $zipfile, '-d', $self->curr_dir() );
 }
 
+sub get_DBAdaptor
+{
+    my ( $self, $type ) = @_;
 
+    if ( !$type ) {
+        die("type arg must be specified\n");
+    }
 
+    if ( !$self->{'db_adaptors'}->{$type} ) {
+        warning("dbadaptor of type $type is not available\n");
+        return undef;
+    }
 
-sub get_DBAdaptor {
-  my ($self, $type) = @_;
-
-  unless($type) {
-    die('type arg must be specified\n');
-  }
-
-  unless($self->{'db_adaptors'}->{$type}) {
-    warning("dbadaptor of type $type is not available\n");
-    return undef;
-  }
-
-  return $self->{'db_adaptors'}->{$type};
+    return $self->{'db_adaptors'}->{$type};
 }
-
-
 
 =head2 hide
 
@@ -386,48 +427,49 @@ sub get_DBAdaptor {
 
 =cut
 
-sub hide {
-  my ($self, $dbtype, @tables) = @_;
+sub hide
+{
+    my ( $self, $dbtype, @tables ) = @_;
 
-  unless($dbtype && @tables) {
-    die("dbtype and table args must be defined\n");
-  }
-
-  my $adaptor = $self->get_DBAdaptor($dbtype);
-
-  unless($adaptor) {
-    die "adaptor for $dbtype is not available\n";
-  }
-
-  foreach my $table (@tables) {
-
-    if($self->{'conf'}->{$dbtype}->{'hidden'}->{$table}) {
-      warning("table '$table' is already hidden and cannot be hidden again\n");
-      next;
+    if ( !( $dbtype && @tables ) ) {
+        die("dbtype and table args must be defined\n");
     }
 
-    my $hidden_name = "_hidden_$table";
+    my $adaptor = $self->get_DBAdaptor($dbtype);
 
-    #copy contents of table into a temp table
+    if ( !$adaptor ) {
+        die "adaptor for $dbtype is not available\n";
+    }
 
-    my $sth =
-      $adaptor->dbc->prepare("CREATE TABLE $hidden_name " .
-                        "SELECT * FROM $table");
+    foreach my $table (@tables) {
 
-    $sth->execute();
-    $sth->finish();
+        if ( $self->{'conf'}->{$dbtype}->{'hidden'}->{$table} ) {
+            warning(
+"table '$table' is already hidden and cannot be hidden again\n"
+            );
+            next;
+        }
 
-    #delete the contents of the original table
-    $sth = $adaptor->dbc->prepare("DELETE FROM $table");
-    $sth->execute();
-    $sth->finish();
+        my $hidden_name = "_hidden_$table";
 
-    #update the hidden table config
-    $self->{'conf'}->{$dbtype}->{'hidden'}->{$table} = $hidden_name;
-  }
+        #copy contents of table into a temp table
+
+        my $sth =
+          $adaptor->dbc->prepare(
+            "CREATE TABLE $hidden_name " . "SELECT * FROM $table" );
+
+        $sth->execute();
+        $sth->finish();
+
+        #delete the contents of the original table
+        $sth = $adaptor->dbc->prepare("DELETE FROM $table");
+        $sth->execute();
+        $sth->finish();
+
+        #update the hidden table config
+        $self->{'conf'}->{$dbtype}->{'hidden'}->{$table} = $hidden_name;
+    }
 }
-
-
 
 =head2 restore
 
@@ -446,56 +488,58 @@ sub hide {
 
 =cut
 
-sub restore {
-  my ($self, $dbtype, @tables) = @_;
+sub restore
+{
+    my ( $self, $dbtype, @tables ) = @_;
 
-  if(!$dbtype) {
-    #restore all of the tables in every dbtype
+    if ( !$dbtype ) {
+        # Restore all of the tables in every dbtype
+        foreach my $dbtype ( keys %{ $self->{'conf'} } ) {
+            $self->restore($dbtype);
+        }
 
-    foreach my $dbtype (keys %{$self->{'conf'}}) {
-      $self->restore($dbtype);
+        # Lose the hidden table details
+        delete $self->{'conf'}->{'hidden'};
+
+        return;
     }
 
-    #lose the hidden table details
-    delete $self->{'conf'}->{'hidden'};
+    my $adaptor = $self->get_DBAdaptor($dbtype);
 
-    return;
-  }
+    if ( !$adaptor ) {
+        die "Adaptor for $dbtype is not available";
+    }
 
-  my $adaptor = $self->get_DBAdaptor($dbtype);
-  unless($adaptor) {
-    die "Adaptor for $dbtype is not available";
-  }
+    if ( !@tables ) {
+        # Restore all of the tables for this db
+        @tables = keys %{ $self->{'conf'}->{$dbtype}->{'hidden'} };
+    }
 
-  if(!@tables) {
-    #restore all of the tables for this db
-    @tables = keys %{$self->{'conf'}->{$dbtype}->{'hidden'}};
-  }
+    foreach my $table (@tables) {
+        my $hidden_name =
+          $self->{'conf'}->{$dbtype}->{'hidden'}->{$table};
 
-  foreach my $table (@tables) {
-    my $hidden_name = $self->{'conf'}->{$dbtype}->{'hidden'}->{$table};
-	
-    #delete current contents of table
-    my $sth = $adaptor->dbc->prepare("delete from $table");
-    $sth->execute();
-    $sth->finish();
+        # Delete current contents of table
+        my $sth = $adaptor->dbc->prepare("delete from $table");
+        $sth->execute();
+        $sth->finish();
 
-    #copy contents of tmp table back into main table
-    $sth = $adaptor->dbc->prepare("insert into $table " .
-                             "select * from $hidden_name");
-    $sth->execute();
-    $sth->finish();
+        # Copy contents of tmp table back into main table
+        $sth =
+          $adaptor->dbc->prepare(
+            "insert into $table " . "select * from $hidden_name" );
+        $sth->execute();
+        $sth->finish();
 
-    #drop temp table
-    $sth = $adaptor->dbc->prepare("drop table $hidden_name");
-    $sth->execute();
-    $sth->finish();
+        # Drop temp table
+        $sth = $adaptor->dbc->prepare("drop table $hidden_name");
+        $sth->execute();
+        $sth->finish();
 
-    #delete value from hidden table config
-    delete $self->{'conf'}->{$dbtype}->{'hidden'}->{$table};
-  }
+        # Delete value from hidden table config
+        delete $self->{'conf'}->{$dbtype}->{'hidden'}->{$table};
+    }
 }
-
 
 =head2 save
 
@@ -518,37 +562,38 @@ sub restore {
 
 =cut
 
-sub save {
-  my ($self, $dbtype, @tables) = @_;
+sub save
+{
+    my ( $self, $dbtype, @tables ) = @_;
 
-  # use the hide method to build the basic tables
-  $self->hide($dbtype, @tables);
+    # use the hide method to build the basic tables
+    $self->hide( $dbtype, @tables );
 
-  my $adaptor = $self->get_DBAdaptor($dbtype);
+    my $adaptor = $self->get_DBAdaptor($dbtype);
 
-  unless($adaptor) {
-    die "adaptor for $dbtype is not available\n";
-  }
-
-  my $hidden_name = '';
-  foreach my $table (@tables) {
-
-    # only do if the hidden table exists
-    if($self->{'conf'}->{$dbtype}->{'hidden'}->{$table}) {
-
-      $hidden_name = "_hidden_$table";
-
-      #copy the data from the hidden table into the new table
-      my $sth = $adaptor->dbc->prepare("insert into $table " .
-                                  "select * from $hidden_name"); 
-      $sth->execute;
+    if ( !$adaptor ) {
+        die "adaptor for $dbtype is not available\n";
     }
-    else {
-      warning("hidden table '$hidden_name' does not exist so saving is not possible\n");
+
+    my $hidden_name = '';
+    foreach my $table (@tables) {
+
+        # only do if the hidden table exists
+        if ( $self->{'conf'}->{$dbtype}->{'hidden'}->{$table} ) {
+
+            $hidden_name = "_hidden_$table";
+
+            #copy the data from the hidden table into the new table
+            my $sth =
+              $adaptor->dbc->prepare(
+                "insert into $table " . "select * from $hidden_name" );
+            $sth->execute();
+        } else {
+            warning("hidden table '$hidden_name' does not exist "
+                  . "so saving is not possible\n" );
+        }
     }
-  }
 }
-
 
 =head2 save_permanent
 
@@ -568,198 +613,200 @@ sub save {
 
 =cut
 
-sub save_permanent {
-  my ($self, $dbtype, @tables) = @_;
+sub save_permanent
+{
+    my ( $self, $dbtype, @tables ) = @_;
 
-  unless($dbtype && @tables) {
-    die("dbtype and table args must be defined\n");
-  }
-
-  my $adaptor = $self->get_DBAdaptor($dbtype);
-
-  unless($adaptor) {
-    die "adaptor for $dbtype is not available\n";
-  }
-
-  $self->{'conf'}->{$dbtype}->{'_counter'}++;
-
-  foreach my $table (@tables) {
-
-    my $hidden_name = "_bak_$table"."_".$self->{'conf'}->{$dbtype}->{'_counter'};
-
-    my $sth =
-      $adaptor->dbc->prepare("CREATE TABLE $hidden_name " .
-                        "SELECT * FROM $table");
-
-    $sth->execute();
-    $sth->finish();
-  }
-}
-
-
-sub _db_exists {
-  my ( $db, $db_name ) = @_;
-
-  my $db_names = $db->selectall_arrayref( "show databases" );
-  for my $db_name_ref ( @$db_names ) {
-    if( $db_name_ref->[0] eq $db_name ) {
-      return 1;
+    if ( !( $dbtype && @tables ) ) {
+        die("dbtype and table args must be defined\n");
     }
-  }
 
-  return 0;
+    my $adaptor = $self->get_DBAdaptor($dbtype);
+
+    if ( !$adaptor ) {
+        die "adaptor for $dbtype is not available\n";
+    }
+
+    $self->{'conf'}->{$dbtype}->{'_counter'}++;
+
+    foreach my $table (@tables) {
+
+        my $hidden_name =
+          "_bak_$table" . "_"
+          . $self->{'conf'}->{$dbtype}->{'_counter'};
+
+        my $sth =
+          $adaptor->dbc->prepare(
+            "CREATE TABLE $hidden_name " . "SELECT * FROM $table" );
+
+        $sth->execute();
+        $sth->finish();
+    }
 }
 
+sub _db_exists
+{
+    my ( $db, $db_name ) = @_;
 
+    my $db_names = $db->selectall_arrayref("show databases");
+    for my $db_name_ref (@$db_names) {
+        if ( $db_name_ref->[0] eq $db_name ) {
+            return 1;
+        }
+    }
 
-sub compare {
-  my ($self, $dbtype, $table) = @_;
+    return 0;
+}
 
-  warning("save method not yet implemented\n");
+sub compare
+{
+    my ( $self, $dbtype, $table ) = @_;
+
+    warning("save method not yet implemented\n");
 
 }
 
+sub species
+{
+    my ( $self, $species ) = @_;
 
-sub species {
-  my ($self, $species) = @_;
+    if ($species) {
+        $self->{'species'} = $species;
+    }
 
-  if($species) {
-    $self->{'species'} = $species;
-  }
-
-  return $self->{'species'};
+    return $self->{'species'};
 }
 
+sub curr_dir
+{
+    my ( $self, $cdir ) = @_;
 
+    if ($cdir) {
+        $self->{'_curr_dir'} = $cdir;
+    }
 
-sub curr_dir {
-  my ($self, $cdir) = @_;
-
-  if($cdir) {
-    $self->{'_curr_dir'} = $cdir;
-  }
-
-  return $self->{'_curr_dir'};
+    return $self->{'_curr_dir'};
 }
 
+sub _create_db_name
+{
+    my ( $self, $dbtype ) = @_;
 
+    my @localtime = localtime();
+    my $date      = strftime "%Y%m%d", @localtime;
+    my $time      = strftime "%H%M%S", @localtime;
 
-sub _create_db_name {
-    my( $self, $dbtype ) = @_;
-
-    my $date = strftime "%Y%m%d", localtime;
-    my $time = strftime "%H%M%S", localtime;
-
-    my $species = $self->species;
+    my $species = $self->species();
 
     # create a unique name using host and date / time info
-    my $db_name = $ENV{'USER'}."_test_db_${species}_${dbtype}_".$date."_".$time;
+    my $db_name = sprintf(
+        "%s_test_db_%s_%s_%s_%s",
+        ( exists $ENV{'LOGNAME'} ? $ENV{'LOGNAME'} : $ENV{'USER'} ),
+        $species, $dbtype, $date, $time
+    );
 
     return $db_name;
 }
 
+sub cleanup
+{
+    my $self = shift;
+
+    # Delete the unpacked schema and data files
+    print "# Deleting " . $self->curr_dir() . '/' . DUMP_DIR . "\n";
+    $self->_delete_files( $self->curr_dir() . '/' . DUMP_DIR );
 
 
-
-
-sub cleanup {
-  my $self = shift;
-
-  #delete the unpacked schema and data files
-  $self->_delete_files($self->curr_dir . $DUMP_DIR);
-  print STDERR "\nDeleted ".$self->curr_dir . "$DUMP_DIR\n";
-
-  #remove all of the handles on dbadaptors
-  foreach my $dbtype (keys %{$self->{'db_adaptors'}}) {
-    delete $self->{'db_adaptors'}->{$dbtype};
-  }
-
-  #delete each of the created temporary databases
-  foreach my $dbtype (keys %{$self->{'conf'}}) {
-
-    my $db_conf = $self->{'conf'}->{$dbtype};
-    my $host   = $db_conf->{'host'};
-    my $user   = $db_conf->{'user'};
-    my $pass   = $db_conf->{'pass'};
-    my $port   = $db_conf->{'port'};
-    my $driver = $db_conf->{'driver'};
-    my $dbname = $db_conf->{'dbname'};
-    
-    if( $db_conf->{'preloaded'} ) {
-      next;
+    # Remove all of the handles on dbadaptors
+    foreach my $dbtype ( keys %{ $self->{'db_adaptors'} } ) {
+        delete $self->{'db_adaptors'}->{$dbtype};
     }
-    #connect to the database
-    my $locator = "DBI:".$driver.":host=".$host.";port=".$port;
 
-    my $db = DBI->connect($locator, $user, $pass, {RaiseError => 1});
-      
-    unless($db) {
-      die "Can't connect to database $locator";
+    # Delete each of the created temporary databases
+    foreach my $dbtype ( keys %{ $self->{'conf'} } ) {
+
+        my $db_conf = $self->{'conf'}->{$dbtype};
+        my $host    = $db_conf->{'host'};
+        my $user    = $db_conf->{'user'};
+        my $pass    = $db_conf->{'pass'};
+        my $port    = $db_conf->{'port'};
+        my $driver  = $db_conf->{'driver'};
+        my $dbname  = $db_conf->{'dbname'};
+
+        if ( $db_conf->{'preloaded'} ) {
+            next;
+        }
+
+        # Connect to the database
+        my $locator =
+          sprintf( "DBI:%s:host=%s;port=%s", $driver, $host, $port );
+
+        my $db =
+          DBI->connect( $locator, $user, $pass, { RaiseError => 1 } )
+          or die "Can't connect to database $locator";
+
+        print "# Dropping db $dbname\n";
+
+        $db->do("DROP DATABASE $dbname");
+        $db->disconnect();
     }
-    
-    print STDERR "Dropping db $dbname \n";
-    $db->do("DROP database $dbname");
-    $db->disconnect;
-  }
 
-  my $conf_file = $self->curr_dir . $self->species . $FROZEN_CONF_EXT;
-  
-  #delete the frozen config file
-  if(-e $conf_file && -f $conf_file) {
-    unlink $conf_file;
-    print STDERR "Deleted $conf_file\n";
-  }
+    my $conf_file = sprintf( "%s/%s.%s",
+        $self->curr_dir(), $self->species(), FROZEN_CONF_SUFFIX );
 
+    # Delete the frozen config file
+    if ( -e $conf_file && -f $conf_file ) {
+        print "# Deleting $conf_file\n";
+        unlink $conf_file;
+    }
 }
 
+sub _delete_files
+{
+    my ( $self, $dir ) = @_;
 
-sub _delete_files {
-  my ($self, $dir) = @_;
+    local *DIR;
+    opendir DIR, $dir;
 
-  local *DIR;
-  opendir DIR, $dir;
+    #ignore files starting with '.'
 
-  #ignore files starting with '.'
+    my @files = grep !/^\./, readdir DIR;
 
-  my @files = grep !/^\./, readdir DIR;
+    foreach my $file (@files) {
 
-  foreach my $file (@files) {
+        $file = $dir . "/" . $file;
+        if ( -d $file ) {
 
-    $file = $dir ."/". $file;
-    if(-d $file) {
+            #call recursively on subdirectories
+            $self->_delete_files($file);
 
-      #call recursively on subdirectories
-      $self->_delete_files($file);
+        } else {
+            unlink $file;
+        }
+    }
+    closedir DIR;
 
+    rmdir $dir;
+}
+
+sub DESTROY
+{
+    my ($self) = shift;
+
+    if ( $ENV{'RUNTESTS_HARNESS'} ) {
+        # Restore tables, do nothing else we want to use the database
+        # for the other tests as well
+        print "# Leaving database intact on server\n";
+        $self->restore();
     } else {
-      unlink $file;
-    }
-  }
-  closedir DIR;
+        # We are runnning a stand-alone test, cleanup created databases
+        print "# Cleaning up...\n";
 
-  rmdir $dir;
-}
-
-
-sub DESTROY {
-    my( $self ) = shift;
-
-    if($ENV{'RUNTESTS_HARNESS'}) {
-      #restore tables, do nothing else we want to use the database for 
-      #the other tests as well
-      $self->restore;
-    } else {
-      #we are runnning a stand-alone test, cleanup created databases
-      print STDERR "\nCleaning up....\n";
-      #restore database state since we may not actually delete it in the
-      #cleanup - it may be defined as a preloaded db
-      $self->restore;
-      $self->cleanup;
+        # Restore database state since we may not actually delete it in
+        # the cleanup - it may be defined as a preloaded db
+        $self->restore();
+        $self->cleanup();
     }
 }
-
-
-
 
 1;
-
