@@ -20,6 +20,7 @@ use DBI;
 use Data::Dumper;
 use File::Basename;
 use IO::File;
+use IO::Dir;
 use POSIX qw(strftime);
 
 use Bio::EnsEMBL::Utils::Exception qw( warning throw );
@@ -202,13 +203,15 @@ sub load_databases
 
     # Connect to the database
     my $locator =
-        "DBI:" . $driver . ":host=" . $host . ";port=" . $port
-      . ";mysql_local_infile=1";
+      sprintf( "DBI:%s:host=%s;port=%s;mysql_local_infile=1",
+        $driver, $host, $port );
+
     my $db =
       DBI->connect( $locator, $user, $pass, { RaiseError => 1 } );
 
-    if ( !$db ) {
-        warning("Can't connect to database $locator");
+    if ( !defined $db ) {
+        warning(
+            "Can't connect to database '$locator': " . $DBI::errstr );
         return;
     }
 
@@ -237,7 +240,7 @@ sub load_databases
         }
     }
 
-    #create a database for each database specified
+    # Create a database for each database specified
     foreach my $dbtype (
         keys %{ $db_conf->{'databases'}->{ $self->{'species'} } } )
     {
@@ -247,11 +250,12 @@ sub load_databases
         $self->{'conf'}->{$dbtype}->{'module'} =
           $db_conf->{'databases'}->{ $self->{'species'} }->{$dbtype};
 
-        # it's not necessary to store the databases and zip bits of info
+        # It is not necessary to store the databases and zip bits of
+        # info
         delete $self->{'conf'}->{$dbtype}->{'databases'};
         delete $self->{'conf'}->{$dbtype}->{'zip'};
 
-        #don't create a database if there is a preloaded one specified
+        # Don't create a database if there is a preloaded one specified
         if (
             (
                 $db_conf->{'preloaded'}->{ $self->{'species'} }
@@ -273,11 +277,11 @@ sub load_databases
               ->{$dbtype};
             $self->{'conf'}->{$dbtype}->{'preloaded'} = 1;
         } else {
-
-            #create a unique random dbname
+            # Create a temporary database name
             my $dbname =
               $db_conf->{'preloaded'}->{ $self->{'species'} }
               ->{$dbtype};
+
             if ( !defined $dbname ) {
                 $dbname = $self->_create_db_name($dbtype);
                 delete $self->{'conf'}->{$dbtype}->{'preloaded'};
@@ -285,7 +289,8 @@ sub load_databases
                 $self->{'conf'}->{$dbtype}->{'preloaded'} = 1;
             }
 
-        #store the temporary database name in the dbtype specific config
+            # Store the temporary database name in the dbtype specific
+            # config
             $self->{'conf'}->{$dbtype}->{'dbname'} = $dbname;
 
             print "# Creating database $dbname\n";
@@ -295,30 +300,30 @@ sub load_databases
                 return;
             }
 
-            #copy the general config into a dbtype specific config
+            # Copy the general config into a dbtype specific config
 
             $db->do("USE $dbname");
 
             # Load the database with data
-            my $dir = sprintf( "%s/%s/%s/%s",
+            my $dir_name = sprintf( "%s/%s/%s/%s",
                 $self->curr_dir(), DUMP_DIR,
                 $self->species(),  $dbtype );
 
-            local *DIR;
+            my $dir = IO::Dir->new($dir_name);
 
-            if ( !opendir( DIR, $dir ) ) {
-                warning("could not open dump directory '$dir'");
+            if ( !defined $dir ) {
+                warning("Could not open dump directory '$dir_name'");
                 return;
             }
 
-            my @files = readdir DIR;
+            my @files = $dir->read();
 
             # Read in table creat statements from *.sql files and
             # process them with DBI
 
             foreach my $sql_file ( grep /\.sql$/, @files ) {
 
-                $sql_file = "$dir/$sql_file";
+                $sql_file = $dir_name . '/' . $sql_file;
 
                 my $fh = IO::File->new($sql_file);
 
@@ -360,9 +365,9 @@ sub load_databases
                       . "INTO TABLE $tablename" );
 
             }
-        }
 
-        closedir DIR;
+            $dir->close();
+        }
     }
 
     $db->disconnect();
@@ -743,7 +748,8 @@ sub cleanup
 
         my $db =
           DBI->connect( $locator, $user, $pass, { RaiseError => 1 } )
-          or die "Can't connect to database $locator";
+          or die "Can't connect to database '$locator': "
+          . $DBI::errstr;
 
         print "# Dropping db $dbname\n";
 
@@ -763,30 +769,27 @@ sub cleanup
 
 sub _delete_files
 {
-    my ( $self, $dir ) = @_;
+    my ( $self, $dir_name ) = @_;
 
-    local *DIR;
-    opendir DIR, $dir;
+    my $dir = IO::Dir->new($dir_name);
 
-    #ignore files starting with '.'
+    # Ignore files starting with '.'
 
-    my @files = grep !/^\./, readdir DIR;
+    my @files = grep !/^\./, $dir->read();
 
     foreach my $file (@files) {
 
-        $file = $dir . "/" . $file;
+        $file = $dir_name . "/" . $file;
         if ( -d $file ) {
-
-            #call recursively on subdirectories
+            # Call recursively on subdirectories
             $self->_delete_files($file);
-
         } else {
             unlink $file;
         }
     }
-    closedir DIR;
+    $dir->close();
 
-    rmdir $dir;
+    rmdir($dir_name);
 }
 
 sub DESTROY
