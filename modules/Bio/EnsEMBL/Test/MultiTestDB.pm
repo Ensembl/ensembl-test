@@ -55,7 +55,7 @@ sub new
         my $clean_file = sprintf( "%s/CLEAN.t", dirname(__FILE__) );
 
         if ( system( 'cp', $clean_file, $curr_dir ) ) {
-            warn "Could not copy $clean_file to $curr_dir\n";
+            warning("# !! Could not copy $clean_file to $curr_dir\n");
         }
     }
 
@@ -85,7 +85,7 @@ sub new
 }
 
 #
-# Load config into $self->{'conf'} hash
+# Load configuration into $self->{'conf'} hash
 #
 sub load_config
 {
@@ -115,14 +115,14 @@ sub store_config
         $self->curr_dir(), $self->species(), FROZEN_CONF_SUFFIX );
 
     my $fh = IO::File->new(">$conf")
-      or die "Could not open config file '$conf'\n";
+      or die "Could not open configuration file '$conf'\n";
 
     my $string = Dumper( $self->{'conf'} );
 
-    # strip off leading '$VAR1 = '
+    # Strip off leading '$VAR1 = '
     $string =~ s/^[\$]VAR1\s*=//;
 
-    # store config in file
+    # Store configuration in file
     $fh->print($string);
 
     $fh->close();
@@ -143,33 +143,24 @@ sub create_adaptors
         my $adaptor;
         my $module = $db->{'module'};
 
-        #try to instantiate an adaptor for this database
-        eval {
-
-            # require needs /'s rather than colons
-            if ( $module =~ /::/ ) {
-                $module =~ s/::/\//g;
-            }
-            require $module . '.pm';
-
-            # but switch back for the new instantiation
-            $module =~ s/\//::/g;
-
-            $adaptor = $module->new(
-                -dbname  => $db->{'dbname'},
-                -user    => $db->{'user'},
-                -pass    => $db->{'pass'},
-                -port    => $db->{'port'},
-                -host    => $db->{'host'},
-                -driver  => $db->{'driver'},
-                -species => $self->{'species'}
-            );
-        };
+        # Try to instantiate an adaptor for this database
+        if ( eval "require $module" ) {
+            eval {
+                $adaptor = $module->new(
+                    -dbname  => $db->{'dbname'},
+                    -user    => $db->{'user'},
+                    -pass    => $db->{'pass'},
+                    -port    => $db->{'port'},
+                    -host    => $db->{'host'},
+                    -driver  => $db->{'driver'},
+                    -species => $self->{'species'}
+                );
+            };
+        }
 
         if ($@) {
             warning(
-                "WARNING: Could not instantiate $dbtype DBAdaptor:\n$@"
-            );
+                "# !! Could not instantiate $dbtype DBAdaptor:\n$@" );
         } else {
             $self->{'db_adaptors'}->{$dbtype} = $adaptor;
         }
@@ -198,7 +189,7 @@ sub load_databases
     my $user   = $db_conf->{'user'};
     my $zip    = $db_conf->{'zip'};
 
-    # Create a config hash which will be frozen to a file
+    # Create a configuration hash which will be frozen to a file
     $self->{'conf'} = {};
 
     # Connect to the database
@@ -210,8 +201,8 @@ sub load_databases
       DBI->connect( $locator, $user, $pass, { RaiseError => 1 } );
 
     if ( !defined $db ) {
-        warning(
-            "Can't connect to database '$locator': " . $DBI::errstr );
+        warning( "# !! Can't connect to database '$locator': "
+              . $DBI::errstr );
         return;
     }
 
@@ -244,7 +235,8 @@ sub load_databases
     foreach my $dbtype (
         keys %{ $db_conf->{'databases'}->{ $self->{'species'} } } )
     {
-        #copy the general config into a dbtype specific config
+        # Copy the general configuration into a dbtype specific
+        # configuration
         $self->{'conf'}->{$dbtype} = {};
         %{ $self->{'conf'}->{$dbtype} } = %$db_conf;
         $self->{'conf'}->{$dbtype}->{'module'} =
@@ -271,7 +263,8 @@ sub load_databases
           )
         {
 
-        #store the temporary database name in the dbtype specific config
+        # Store the temporary database name in the dbtype specific
+        # configuration
             $self->{'conf'}->{$dbtype}->{'dbname'} =
               $db_conf->{'preloaded'}->{ $self->{'species'} }
               ->{$dbtype};
@@ -290,17 +283,18 @@ sub load_databases
             }
 
             # Store the temporary database name in the dbtype specific
-            # config
+            # configuration
             $self->{'conf'}->{$dbtype}->{'dbname'} = $dbname;
 
             print "# Creating database $dbname\n";
 
             if ( !$db->do("CREATE DATABASE $dbname") ) {
-                warning("Could not create database [$dbname]");
+                warning("# !! Could not create database [$dbname]");
                 return;
             }
 
-            # Copy the general config into a dbtype specific config
+            # Copy the general configuration into a dbtype specific
+            # configuration
 
             $db->do("USE $dbname");
 
@@ -312,7 +306,8 @@ sub load_databases
             my $dir = IO::Dir->new($dir_name);
 
             if ( !defined $dir ) {
-                warning("Could not open dump directory '$dir_name'");
+                warning(
+                    "# !! Could not open dump directory '$dir_name'" );
                 return;
             }
 
@@ -328,7 +323,8 @@ sub load_databases
                 my $fh = IO::File->new($sql_file);
 
                 if ( !defined $fh ) {
-                    warning("could not read SQL file '$sql_file'\n");
+                    warning(
+                        "# !! Could not read SQL file '$sql_file'\n");
                     next;
                 }
 
@@ -336,7 +332,7 @@ sub load_databases
 
                 while ( defined( my $line = $fh->getline() ) ) {
                     if ( $line =~ /^#/ || $line !~ /\S/ ) {
-                        # ignore comments and white-space lines
+                        # Ignore comments and white-space lines
                         next;
                     }
                     $sql_com .= $line;
@@ -344,20 +340,22 @@ sub load_databases
 
                 $fh->close();
 
-                $sql_com =~ s/;$//;    # chop off the last ;
+                # Chop off the last ';'
+                $sql_com =~ s/;$//;
 
                 foreach my $this_sql_com ( split( /;/, $sql_com ) ) {
                     $db->do($this_sql_com);
                 }
 
-                # import data from the txt files of the same name
+                # Import data from the text files of the same name
                 $sql_file =~ m#.*/(.*)\.sql#;
                 my $tablename = $1;
 
                 ( my $txt_file = $sql_file ) =~ s/\.sql$/.txt/;
 
                 if ( !( -f $txt_file && -r $txt_file ) ) {
-                    warning("could not read data file '$txt_file'\n");
+                    warning(
+                        "# !! Could not read data file '$txt_file'\n");
                     next;
                 }
 
@@ -378,8 +376,8 @@ sub unzip_test_dbs
     my ( $self, $zipfile ) = @_;
 
     if ( -e $self->curr_dir() . '/' . DUMP_DIR ) {
-        warn( $self->curr_dir() . '/' . DUMP_DIR,
-            " already unpacked\n" );
+        warning( "# !! '" . $self->curr_dir() . '/' . DUMP_DIR,
+            "' already unpacked\n" );
         return;
     }
 
@@ -388,11 +386,12 @@ sub unzip_test_dbs
     }
 
     if ( !-f $zipfile ) {
-        warning("zipfile $zipfile could not be found\n");
+        warning("# !! Zip archive $zipfile could not be found\n");
         return;
     }
 
     # Unzip the zip file quietly
+    print("# Unzipping test database achive file '$zipfile'\n");
     system( 'unzip', '-q', $zipfile, '-d', $self->curr_dir() );
 }
 
@@ -405,7 +404,8 @@ sub get_DBAdaptor
     }
 
     if ( !$self->{'db_adaptors'}->{$type} ) {
-        warning("dbadaptor of type $type is not available\n");
+        warning(
+            "# !! Database adaptor of type $type is not available\n");
         return undef;
     }
 
@@ -415,19 +415,21 @@ sub get_DBAdaptor
 =head2 hide
 
   Arg [1]    : string $dbtype
-               The type of the database containing the hidden table
+               The type of the database containing the temporary table
   Arg [2]    : string $table
                The name of the table to hide
   Example    : $multi_test_db->hide('core', 'gene', 'transcript', 'exon');
-  Description: Hides the contents of specific table(s) in the specified db.
-               The table(s) are first renamed and an empty table are created 
-               in their place by reading the table schema file.
+  Description: Hides the contents of specific table(s) in the specified
+               database.  The table(s) are first renamed and an empty
+               table are created in their place by reading the table
+               schema file.
   Returntype : none
-  Exceptions : thrown if the adaptor for dbtype is not available
-               thrown if both arguments are not defined
-               warning if a table is already hidden
-               warning if a table cannot be hidden because its schema file 
-               cannot be read
+  Exceptions : Thrown if the adaptor for dbtype is not available
+               Thrown if both arguments are not defined
+               Warning if there is already a temporary ("hidden")
+               version of the table
+               Warning if a temporary ("hidden") version of the table
+               Cannot be created because its schema file cannot be read
   Caller     : general
 
 =cut
@@ -449,29 +451,28 @@ sub hide
     foreach my $table (@tables) {
 
         if ( $self->{'conf'}->{$dbtype}->{'hidden'}->{$table} ) {
-            warning(
-"table '$table' is already hidden and cannot be hidden again\n"
-            );
+            warning("# !! Table '$table' is already hidden "
+                  . "and cannot be hidden again\n" );
             next;
         }
 
         my $hidden_name = "_hidden_$table";
 
-        #copy contents of table into a temp table
+        # Copy contents of table into a temporary table
 
         my $sth =
           $adaptor->dbc->prepare(
-            "CREATE TABLE $hidden_name " . "SELECT * FROM $table" );
+            "CREATE TABLE $hidden_name SELECT * FROM $table");
 
         $sth->execute();
         $sth->finish();
 
-        #delete the contents of the original table
+        # Delete the contents of the original table
         $sth = $adaptor->dbc->prepare("DELETE FROM $table");
         $sth->execute();
         $sth->finish();
 
-        #update the hidden table config
+        # Update the temporary table configuration
         $self->{'conf'}->{$dbtype}->{'hidden'}->{$table} = $hidden_name;
     }
 }
@@ -479,16 +480,18 @@ sub hide
 =head2 restore
 
   Arg [1]    : (optional) $dbtype 
-               The dbtype of the table(s) to be restored. If not specified all
-               hidden tables in all the databases are restored.
+               The dbtype of the table(s) to be restored. If not
+               specified all hidden tables in all the databases are
+               restored.
   Arg [2]    : (optional) @tables
-               The name(s) of the table to be restored.  If not specified all
-               hidden tables in the database $dbtype are restored.
+               The name(s) of the table to be restored.  If not
+               specified all hidden tables in the database $dbtype are
+               restored.
   Example    : $self->restore('core', 'gene', 'transcript', 'exon');
-  Description: Restores a list of hidden tables. The current version of the
-               table is discarded and the hidden table is renamed.
+  Description: Restores a list of hidden tables. The current version of
+               the table is discarded and the hidden table is renamed.
   Returntype : none
-  Exceptions : thrown if the adaptor for a dbtype cannot be obtained
+  Exceptions : Thrown if the adaptor for a dbtype cannot be obtained
   Caller     : general
 
 =cut
@@ -516,7 +519,7 @@ sub restore
     }
 
     if ( !@tables ) {
-        # Restore all of the tables for this db
+        # Restore all of the tables for this database
         @tables = keys %{ $self->{'conf'}->{$dbtype}->{'hidden'} };
     }
 
@@ -525,23 +528,23 @@ sub restore
           $self->{'conf'}->{$dbtype}->{'hidden'}->{$table};
 
         # Delete current contents of table
-        my $sth = $adaptor->dbc->prepare("delete from $table");
+        my $sth = $adaptor->dbc->prepare("DELETE FROM $table");
         $sth->execute();
         $sth->finish();
 
         # Copy contents of tmp table back into main table
         $sth =
           $adaptor->dbc->prepare(
-            "insert into $table " . "select * from $hidden_name" );
+            "INSERT INTO $table " . "SELECT * FROM $hidden_name" );
         $sth->execute();
         $sth->finish();
 
         # Drop temp table
-        $sth = $adaptor->dbc->prepare("drop table $hidden_name");
+        $sth = $adaptor->dbc->prepare("DROP TABLE $hidden_name");
         $sth->execute();
         $sth->finish();
 
-        # Delete value from hidden table config
+        # Delete value from hidden table configuration
         delete $self->{'conf'}->{$dbtype}->{'hidden'}->{$table};
     }
 }
@@ -571,7 +574,7 @@ sub save
 {
     my ( $self, $dbtype, @tables ) = @_;
 
-    # use the hide method to build the basic tables
+    # Use the hide method to build the basic tables
     $self->hide( $dbtype, @tables );
 
     my $adaptor = $self->get_DBAdaptor($dbtype);
@@ -583,18 +586,18 @@ sub save
     my $hidden_name = '';
     foreach my $table (@tables) {
 
-        # only do if the hidden table exists
+        # Only do if the hidden table exists
         if ( $self->{'conf'}->{$dbtype}->{'hidden'}->{$table} ) {
 
             $hidden_name = "_hidden_$table";
 
-            #copy the data from the hidden table into the new table
+            # Copy the data from the hidden table into the new table
             my $sth =
               $adaptor->dbc->prepare(
                 "insert into $table " . "select * from $hidden_name" );
             $sth->execute();
         } else {
-            warning("hidden table '$hidden_name' does not exist "
+            warning("# !! Hidden table '$hidden_name' does not exist "
                   . "so saving is not possible\n" );
         }
     }
@@ -653,7 +656,8 @@ sub _db_exists
 {
     my ( $db, $db_name ) = @_;
 
-    my $db_names = $db->selectall_arrayref("show databases");
+    my $db_names = $db->selectall_arrayref("SHOW DATABASES");
+
     for my $db_name_ref (@$db_names) {
         if ( $db_name_ref->[0] eq $db_name ) {
             return 1;
@@ -667,7 +671,7 @@ sub compare
 {
     my ( $self, $dbtype, $table ) = @_;
 
-    warning("save method not yet implemented\n");
+    warning("# !! Compare method not yet implemented\n");
 
 }
 
@@ -703,7 +707,7 @@ sub _create_db_name
 
     my $species = $self->species();
 
-    # create a unique name using host and date / time info
+    # Create a unique name using host and date / time info
     my $db_name = sprintf(
         "%s_test_db_%s_%s_%s_%s",
         ( exists $ENV{'LOGNAME'} ? $ENV{'LOGNAME'} : $ENV{'USER'} ),
@@ -722,7 +726,7 @@ sub cleanup
     $self->_delete_files( $self->curr_dir() . '/' . DUMP_DIR );
 
 
-    # Remove all of the handles on dbadaptors
+    # Remove all of the handles on db_adaptors
     foreach my $dbtype ( keys %{ $self->{'db_adaptors'} } ) {
         delete $self->{'db_adaptors'}->{$dbtype};
     }
@@ -751,7 +755,7 @@ sub cleanup
           or die "Can't connect to database '$locator': "
           . $DBI::errstr;
 
-        print "# Dropping db $dbname\n";
+        print "# Dropping database $dbname\n";
 
         $db->do("DROP DATABASE $dbname");
         $db->disconnect();
@@ -760,7 +764,7 @@ sub cleanup
     my $conf_file = sprintf( "%s/%s.%s",
         $self->curr_dir(), $self->species(), FROZEN_CONF_SUFFIX );
 
-    # Delete the frozen config file
+    # Delete the frozen configuration file
     if ( -e $conf_file && -f $conf_file ) {
         print "# Deleting $conf_file\n";
         unlink $conf_file;
@@ -806,7 +810,7 @@ sub DESTROY
         print "# Cleaning up...\n";
 
         # Restore database state since we may not actually delete it in
-        # the cleanup - it may be defined as a preloaded db
+        # the cleanup - it may be defined as a preloaded database
         $self->restore();
         $self->cleanup();
     }
