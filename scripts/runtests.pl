@@ -23,6 +23,11 @@ if (
     die;
 }
 
+# If we were not given a directory as an argument, assume './'
+if ( !@ARGV ) {
+    push @ARGV, './';
+}
+
 # Print usage on '-h' command line option
 if ($opt_h) {
     usage();
@@ -69,6 +74,9 @@ Usage:
 \t\tvisited (default is not to clean up)
 \t-v|--verbose\n\t\tbe verbose
 \t-h|--help\n\t\tdisplay this help text
+
+If no directory or test file is given on the command line, the script
+will assume './' (the current directory).
 EOT
 }
 
