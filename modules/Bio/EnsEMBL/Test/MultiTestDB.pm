@@ -18,7 +18,7 @@ use warnings;
 
 use DBI;
 use Data::Dumper;
-use File::Basename;
+use File::Spec::Functions;
 use IO::File;
 use IO::Dir;
 use POSIX qw(strftime);
@@ -47,12 +47,15 @@ sub new
     # Go and grab the current directory and store it away
     my ( $package, $file, $line ) = caller;
 
-    my $curr_dir = dirname($file);
-
+    my $curr_dir = ( File::Spec->splitpath($file) )[1];
+    if (!defined($curr_dir) || $curr_dir eq '') {
+      $curr_dir = curdir();
+    }
     $self->curr_dir($curr_dir);
 
-    if ( !-e $self->curr_dir() . '/CLEAN.t' ) {
-        my $clean_file = sprintf( "%s/CLEAN.t", dirname(__FILE__) );
+    if ( !-e catfile($self->curr_dir() , 'CLEAN.t') ) {
+        my $clean_file =
+          catfile( ( File::Spec->splitpath(__FILE__) )[1], 'CLEAN.t' );
 
         if ( system( 'cp', $clean_file, $curr_dir ) ) {
             warning("# !! Could not copy $clean_file to $curr_dir\n");
@@ -65,9 +68,7 @@ sub new
 
     $self->species($species);
 
-    if (
-        -e sprintf( "%s/%s.%s", $curr_dir, $species,
-            FROZEN_CONF_SUFFIX ) )
+    if ( -e catfile( $curr_dir, $species . '.' . FROZEN_CONF_SUFFIX ) )
     {
         $self->load_config();
     } else {
@@ -91,8 +92,8 @@ sub load_config
 {
     my $self = shift;
 
-    my $conf = sprintf( "%s/%s.%s",
-        $self->curr_dir(), $self->species(), FROZEN_CONF_SUFFIX );
+    my $conf = catfile( $self->curr_dir(),
+                        $self->species() . '.' . FROZEN_CONF_SUFFIX );
 
     eval {
         # Read file into $self->{'conf'}
@@ -111,8 +112,8 @@ sub store_config
 {
     my $self = shift;
 
-    my $conf = sprintf( "%s/%s.%s",
-        $self->curr_dir(), $self->species(), FROZEN_CONF_SUFFIX );
+    my $conf = catfile( $self->curr_dir(),
+                        $self->species() . '.' . FROZEN_CONF_SUFFIX );
 
     my $fh = IO::File->new(">$conf")
       or die "Could not open configuration file '$conf'\n";
@@ -174,13 +175,16 @@ sub load_databases
     print "# Trying to load [$self->{'species'}] databases\n";
 
     # Create database from conf and from zip files
-    my $conf_file = sprintf( "%s/%s", $self->curr_dir(), CONF_FILE );
+    my $conf_file = catfile( $self->curr_dir(), CONF_FILE );
 
     if ( !-e $conf_file ) {
         throw("Required conf file '$conf_file' does not exist");
     }
 
     my $db_conf = do $conf_file;
+    if ( !defined($db_conf) ) {
+      die("Error while loading config file");
+    }
 
     my $port   = $db_conf->{'port'};
     my $driver = $db_conf->{'driver'};
@@ -226,7 +230,7 @@ sub load_databases
           )
         {
             # Unzip database files
-            $self->unzip_test_dbs( $self->curr_dir() . '/' . $zip );
+            $self->unzip_test_dbs( catfile( $self->curr_dir(), $zip ) );
             last UNZIP;
         }
     }
@@ -299,9 +303,8 @@ sub load_databases
             $db->do("USE $dbname");
 
             # Load the database with data
-            my $dir_name = sprintf( "%s/%s/%s/%s",
-                $self->curr_dir(), DUMP_DIR,
-                $self->species(),  $dbtype );
+            my $dir_name = catdir( $self->curr_dir(), DUMP_DIR,
+                                   $self->species(),  $dbtype );
 
             my $dir = IO::Dir->new($dir_name);
 
@@ -318,7 +321,7 @@ sub load_databases
 
             foreach my $sql_file ( grep /\.sql$/, @files ) {
 
-                $sql_file = $dir_name . '/' . $sql_file;
+                $sql_file = catfile( $dir_name, $sql_file );
 
                 my $fh = IO::File->new($sql_file);
 
@@ -375,10 +378,11 @@ sub unzip_test_dbs
 {
     my ( $self, $zipfile ) = @_;
 
-    if ( -e $self->curr_dir() . '/' . DUMP_DIR ) {
-        warning( "# !! '" . $self->curr_dir() . '/' . DUMP_DIR.
-            "' already unpacked\n" );
-        return;
+    if ( -d catdir( $self->curr_dir(), DUMP_DIR ) ) {
+      warning(   "# !! '"
+               . catdir( $self->curr_dir(), DUMP_DIR )
+               . "' already unpacked\n" );
+      return;
     }
 
     if ( !$zipfile ) {
@@ -722,8 +726,8 @@ sub cleanup
     my $self = shift;
 
     # Delete the unpacked schema and data files
-    print "# Deleting " . $self->curr_dir() . '/' . DUMP_DIR . "\n";
-    $self->_delete_files( $self->curr_dir() . '/' . DUMP_DIR );
+    print "# Deleting " . catdir( $self->curr_dir(), DUMP_DIR ) . "\n";
+    $self->_delete_files( catdir( $self->curr_dir(), DUMP_DIR ) );
 
 
     # Remove all of the handles on db_adaptors
@@ -761,8 +765,8 @@ sub cleanup
         $db->disconnect();
     }
 
-    my $conf_file = sprintf( "%s/%s.%s",
-        $self->curr_dir(), $self->species(), FROZEN_CONF_SUFFIX );
+    my $conf_file = catfile( $self->curr_dir(),
+                          $self->species() . '.' . FROZEN_CONF_SUFFIX );
 
     # Delete the frozen configuration file
     if ( -e $conf_file && -f $conf_file ) {
