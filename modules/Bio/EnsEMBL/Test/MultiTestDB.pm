@@ -143,18 +143,33 @@ sub create_adaptors
         my $db = $self->{'conf'}->{$dbtype};
         my $adaptor;
         my $module = $db->{'module'};
+		my %dnadb_params;
+
+		if($dbtype eq 'funcgen'){
+		  #Can specify just host (and user) for auto select
+		  %dnadb_params = (
+						   -dnadb_host => $db->{dnadb_host},
+						   -dnadb_user => $db->{dnadb_user},
+						   -dnadb_pass => $db->{dnadb_pass},
+						   -dnadb_port => $db->{dnadb_port},
+						   -dnadb_name => $db->{dnadb_name},
+						  );
+
+		}
 
         # Try to instantiate an adaptor for this database
         if ( eval "require $module" ) {
-            eval {
+		  
+		  eval {
                 $adaptor = $module->new(
-                    -dbname  => $db->{'dbname'},
-                    -user    => $db->{'user'},
-                    -pass    => $db->{'pass'},
-                    -port    => $db->{'port'},
-                    -host    => $db->{'host'},
-                    -driver  => $db->{'driver'},
-                    -species => $self->{'species'}
+										-dbname  => $db->{'dbname'},
+										-user    => $db->{'user'},
+										-pass    => $db->{'pass'},
+										-port    => $db->{'port'},
+										-host    => $db->{'host'},
+										-driver  => $db->{'driver'},
+										-species => $self->{'species'},
+										%dnadb_params,
                 );
             };
         }
@@ -213,25 +228,20 @@ sub load_databases
     # Only unzip if there are non-preloaded datbases
   UNZIP:
     foreach my $dbtype (
-        keys %{ $db_conf->{'databases'}->{ $self->{'species'} } } )
+						keys %{ $db_conf->{'databases'}->{ $self->{'species'} } } )
     {
-        if (
-            (
-                !exists $db_conf->{'preloaded'}->{ $self->{'species'} }
-                ->{$dbtype}
-            )
-            || (
-                !_db_exists(
-                    $db,
-                    $db_conf->{'preloaded'}->{ $self->{'species'} }
-                      ->{$dbtype}
-                )
-            )
-          )
+	  if (( ! exists $db_conf->{'preloaded'}->{ $self->{'species'} }->{$dbtype}) || 
+		  ( !_db_exists(
+						$db,
+						$db_conf->{'preloaded'}->{ $self->{'species'} }
+						->{$dbtype}
+					   )
+		  )
+		 )
         {
-            # Unzip database files
-            $self->unzip_test_dbs( catfile( $self->curr_dir(), $zip ) );
-            last UNZIP;
+		  # Unzip database files
+		  $self->unzip_test_dbs( catfile( $self->curr_dir(), $zip ) );
+		  last UNZIP;
         }
     }
 
@@ -252,23 +262,15 @@ sub load_databases
         delete $self->{'conf'}->{$dbtype}->{'zip'};
 
         # Don't create a database if there is a preloaded one specified
-        if (
-            (
-                $db_conf->{'preloaded'}->{ $self->{'species'} }
-                ->{$dbtype}
-            )
-            && (
-                _db_exists(
-                    $db,
-                    $db_conf->{'preloaded'}->{ $self->{'species'} }
-                      ->{$dbtype}
-                )
-            )
-          )
-        {
+        if (( $db_conf->{'preloaded'}->{ $self->{'species'} }->{$dbtype}) && 
+			( _db_exists(
+						 $db,
+						 $db_conf->{'preloaded'}->{ $self->{'species'} }->{$dbtype}
+						)))
+		  {
 
-        # Store the temporary database name in the dbtype specific
-        # configuration
+			# Store the temporary database name in the dbtype specific
+			# configuration
             $self->{'conf'}->{$dbtype}->{'dbname'} =
               $db_conf->{'preloaded'}->{ $self->{'species'} }
               ->{$dbtype};
