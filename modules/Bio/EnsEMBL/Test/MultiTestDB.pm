@@ -728,8 +728,8 @@ sub cleanup
     my $self = shift;
 
     # Delete the unpacked schema and data files
-    print "# Deleting " . catdir( $self->curr_dir(), DUMP_DIR ) . "\n";
-    $self->_delete_files( catdir( $self->curr_dir(), DUMP_DIR ) );
+    # print "# Deleting " . catdir( $self->curr_dir(), DUMP_DIR ) . "\n";
+    # $self->_delete_files( catdir( $self->curr_dir(), DUMP_DIR ) );
 
 
     # Remove all of the handles on db_adaptors
