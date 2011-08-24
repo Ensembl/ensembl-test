@@ -143,9 +143,9 @@ sub count_rows
 
   Arg [1]    : Boolean 1-print cycles
   Arg [2]    : Boolean 1-dump variables
-  Example    : find_circular_refs();
+  Example    : my $count = find_circular_refs(1,1);
   Description: Returns the number of variables with circular references. 
-               Only my variables which are ensembl objects are considered.
+               Only variables which are ensembl objects are considered.
                The sub will go through variables which are in scope at the point it was called. 
   Returntype : int
   Exceptions : none
