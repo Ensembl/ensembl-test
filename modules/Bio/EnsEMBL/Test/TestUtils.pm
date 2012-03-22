@@ -28,7 +28,7 @@ This modules exports the following methods by default:
 =head1 CONTACT
 
 Email questions to the ensembl developer mailing list
-<ensembl-dev@ebi.ac.uk>
+<dev@ensembl.org>
 
 =head1 METHODS
 
