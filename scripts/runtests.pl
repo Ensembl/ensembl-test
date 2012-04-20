@@ -1,73 +1,68 @@
-#!/usr/bin/env perl
+#!/usr/local/ensembl/bin/perl -w
 
 use strict;
 use warnings;
 
-use File::Find;
-use File::Spec;
+use File::Basename;
 use Getopt::Long;
-use TAP::Harness;
+use Test::Harness qw( &runtests $verbose );
 
-my $opts = {
-  clean => 0,
-  help => 0,
-  verbose => 0
-};
-my @args = ('clean|clear|c', 'help|h', 'verbose|v', 'list|tests|list-tests|l');
+use IO::Dir;
 
-my $parse = GetOptions($opts, @args);
-if(!$parse) {
-  print STDERR "Could not parse the given arguments. Please consult the help\n";
-  usage();
-  exit 1;
-} 
+our ( $opt_c, $opt_h, $opt_l, $opt_v );
 
-# If we were not given a directory as an argument, assume current directory
-push(@ARGV, File::Spec->curdir()) if ! @ARGV;
+if (
+    !GetOptions(
+        'clean|clear|c'           => \$opt_c,
+        'help|h'                  => \$opt_h,
+        'list|tests|list-tests|l' => \$opt_l,
+        'verbose|v'               => \$opt_v
+    )
+  )
+{
+    die;
+}
+
+# If we were not given a directory as an argument, assume './'
+if ( !@ARGV ) {
+    push @ARGV, './';
+}
 
 # Print usage on '-h' command line option
-if ($opts->{help}) {
-  usage();
-  exit;
+if ($opt_h) {
+    usage();
+    exit;
 }
-
-# Get the tests
-my $input_files_directories = [@ARGV];
-my @tests = eval {
-  get_all_tests($input_files_directories);
-};
-if($@) {
-  printf(STDERR "Could not continue processing due to error: %s\n", $@);
-  exit 1;
-}
-
-#Tests without cleans
-my @no_clean_tests = grep { $_ !~ /CLEAN\.t$/ } @tests;
 
 # List test files on '-l' command line option
-if ($opts->{list}) {
-  print "$_\n" for @no_clean_tests;
-  exit;
+if ($opt_l) {
+    foreach
+      my $file ( grep { !/CLEAN\.t/ } @{ get_all_tests( \@ARGV ) } )
+    {
+        print "$file\n";
+    }
+    exit;
 }
-
-# Make sure proper cleanup is done if the user interrupts the tests
-$SIG{'HUP'} = $SIG{'KILL'} = $SIG{'INT'} = sub { 
-  warn "\n\nINTERRUPT SIGNAL RECEIVED\n\n";
-  exit;
-};
-
-# Harness
-my $harness = TAP::Harness->new({verbosity => $opts->{verbose}, ignore_exit => 1});
 
 # Set environment variables
 $ENV{'RUNTESTS_HARNESS'} = 1;
 
+$verbose = $opt_v;
+
+# Make sure proper cleanup is done if the user interrupts the tests
+$SIG{'HUP'} = $SIG{'KILL'} = $SIG{'INT'} =
+  sub { warn "\n\nINTERRUPT SIGNAL RECEIVED\n\n"; clean(); exit };
+
 # Run all specified tests
 eval {
-  $harness->runtests(@no_clean_tests);
+    runtests( grep { !/CLEAN\.t/ } @{ get_all_tests( \@ARGV ) } );
 };
 
-sub usage {
+clean( \@ARGV );
+
+
+sub usage
+{
     print <<EOT;
 Usage:
 \t$0 [-c] [-v] [<test files or directories> ...]
@@ -81,7 +76,7 @@ Usage:
 \t-h|--help\n\t\tdisplay this help text
 
 If no directory or test file is given on the command line, the script
-will assume the current directory.
+will assume './' (the current directory).
 EOT
 }
 
@@ -89,7 +84,7 @@ EOT
 
   Arg [21]    :(optional) listref $input_files_or_directories
                testfiles or directories to retrieve. If not specified all 
-               "./" directory is the default.
+               "./" direcroty is the default.
   Example    : @test_files = read_test_dir('t');
   Description: Returns a list of testfiles in the directories specified by
                the @tests argument.  The relative path is given as well as
@@ -102,63 +97,105 @@ EOT
 
 =cut
 
-sub get_all_tests {
-  my ($input_files_directories) = @_;
+sub get_all_tests
+{
+    my ($input_files_directories) = @_;
 
-  my @files;
-  my @out;
+    my @files;
+    my @out = ();
 
-  #If we had files use them
-  if ( $input_files_directories && @{$input_files_directories} ) {
-    @files = @{$input_files_directories};
-  }
-  #Otherwise use current directory
-  else {
-    push(@files, File::Spec->curdir());
-  }
+    if ( $input_files_directories && @{$input_files_directories} ) {
+        # Input files were specified so use them
+        @files = @{$input_files_directories};
+    } else {
+        # Otherwise use every file in the directory
 
-  my $is_test = sub {
-    my ($suspect_file) = @_;
-    return 0 unless $suspect_file =~ /\.t$/;
-    if(! -f $suspect_file) {
-      warn "Cannot find file '$suspect_file'";
+        my $dir = IO::Dir->new('.');
+
+        if ( !defined $dir ) {
+            warn("WARNING: cannot open directory '.'\n");
+            return [];
+        }
+
+        @files = $dir->read();
+        $dir->close();
     }
-    elsif(! -r $suspect_file) {
-      warn "Cannot read file '$suspect_file'";
-    }
-    return 1;
-  };
 
-  while (my $file = shift @files) {
-    #If it was a directory use it as a point to search from
-    if(-d $file) {
-      my $dir = $file;
-      #find cd's to the dir in question so use relative for tests
-      find(sub {
-        if( $_ ne '.' && $_ ne '..' && $_ ne 'CVS') {
-          if($is_test->($_)) {
-            push(@out, $File::Find::name);
-          }
-        } 
-      }, $dir);
+    # Put a  slash at the end of each directory name
+    foreach my $dir ( @{$input_files_directories} ) {
+        if ( -d $dir && $dir !~ m#/$# ) {
+            $dir .= '/';
+        }
     }
-    #Otherwise add it if it was a test
-    else {
-      push(@files, $file) if $is_test->($file);
-    }
-  }
 
-  return @out;
+    while (my $file = shift @files) {
+        # Filter out CVS directories
+        if ($file eq 'CVS') {
+            next;
+        }
+
+        if ( -d $file ) {
+            $file =~ s#/$##;
+
+            my $dir = IO::Dir->new($file);
+
+            if ( !defined $dir ) {
+                warn("WARNING: cannot open directory '$file'\n");
+                next;
+            }
+
+            foreach my $another_file ( $dir->read() ) {
+                # Filter out CVS files and ./ and ../
+                if (   $another_file eq '.'
+                    || $another_file eq '..'
+                    || $another_file eq 'CVS' )
+                {
+                    next;
+                }
+
+                push @files, $file . '/' . $another_file;
+            }
+
+            $dir->close();
+        } elsif ( $file =~ /\.t$/ ) {
+            # Files ending with a '.t' are considered test files
+            # Filter out files ending in ~
+
+            if ( !-r $file || !-f $file ) {
+                warn("WARNING: cannot read test file '$file'\n");
+            }
+
+            push @out, $file;
+        }
+    }
+
+    return \@out;
 }
 
-sub DESTROY {
-  # Unset environment variable indicating final cleanup should be
-  # performed
-  delete $ENV{'RUNTESTS_HARNESS'};
-  if($opts->{clean}) {
-    my @clean_tests = grep { $_ =~ /CLEAN\.t$/ } @tests;
-    eval { $harness->runtests(@clean_tests) };
-    warn $@ if $@;
-  }
-  return;
+sub clean
+{
+    my $tests = shift;
+
+    # Unset environment variable indicating final cleanup should be
+    # performed
+    delete $ENV{'RUNTESTS_HARNESS'};
+
+    if ($opt_c) {
+        my %dirs;
+
+        foreach my $file (@$tests) {
+            if ( -d $file && !exists $dirs{ $file } ) {
+                $dirs{$file} = 1;
+            } else {
+                my $dir = dirname($file);
+                if ( !exists $dirs{$dir} ) {
+                    $dirs{$dir} = 1;
+                }
+            }
+        }
+        eval {
+            runtests( grep { /CLEAN\.t/ }
+                  @{ get_all_tests( [ keys %dirs ] ) } );
+        };
+    }
 }
