@@ -25,7 +25,19 @@ use POSIX qw(strftime);
 
 use Bio::EnsEMBL::Utils::Exception qw( warning throw );
 
+use base 'Test::Builder::Module';
+
 $| = 1;
+
+sub diag {
+  my ($self, @args) = @_;
+  $self->builder()->diag(@args);
+}
+
+sub note {
+  my ($self, @args) = @_;
+  $self->builder()->note(@args);
+}
 
 use constant {
     # Homo sapiens is used if no species is specified
@@ -52,13 +64,15 @@ sub new
       $curr_dir = curdir();
     }
     $self->curr_dir($curr_dir);
+    
+    my $target_file = catfile($self->curr_dir() , 'CLEAN.t');
 
-    if ( !-e catfile($self->curr_dir() , 'CLEAN.t') ) {
+    if (! -e $target_file) {
         my $clean_file =
-          catfile( ( File::Spec->splitpath(__FILE__) )[1], 'CLEAN.t' );
+          catfile( ( File::Spec->splitpath(__FILE__) )[1], 'CLEAN.pl' );
 
-        if ( system( 'cp', $clean_file, $curr_dir ) ) {
-            warning("# !! Could not copy $clean_file to $curr_dir\n");
+        if ( system( 'cp', $clean_file, $target_file ) ) {
+            warning("# !! Could not copy $clean_file to $target_file\n");
         }
     }
 
@@ -187,7 +201,7 @@ sub load_databases
 {
     my ($self) = shift;
 
-    print "# Trying to load [$self->{'species'}] databases\n";
+    $self->note("Trying to load [$self->{'species'}] databases");
 
     # Create database from conf and from zip files
     my $conf_file = catfile( $self->curr_dir(), CONF_FILE );
@@ -292,7 +306,7 @@ sub load_databases
             # configuration
             $self->{'conf'}->{$dbtype}->{'dbname'} = $dbname;
 
-            print "# Creating database $dbname\n";
+            $self->note("Creating database $dbname");
 
             if ( !$db->do("CREATE DATABASE $dbname") ) {
                 warning("# !! Could not create database [$dbname]");
@@ -728,7 +742,7 @@ sub cleanup
     my $self = shift;
 
     # Delete the unpacked schema and data files
-    # print "# Deleting " . catdir( $self->curr_dir(), DUMP_DIR ) . "\n";
+    # $self->note("Deleting " . catdir( $self->curr_dir(), DUMP_DIR ));
     # $self->_delete_files( catdir( $self->curr_dir(), DUMP_DIR ) );
 
 
@@ -761,7 +775,7 @@ sub cleanup
           or die "Can't connect to database '$locator': "
           . $DBI::errstr;
 
-        print "# Dropping database $dbname\n";
+        $self->note("Dropping database $dbname");
 
         $db->do("DROP DATABASE $dbname");
         $db->disconnect();
@@ -772,7 +786,7 @@ sub cleanup
 
     # Delete the frozen configuration file
     if ( -e $conf_file && -f $conf_file ) {
-        print "# Deleting $conf_file\n";
+        $self->note("Deleting $conf_file");
         unlink $conf_file;
     }
 }
@@ -809,11 +823,11 @@ sub DESTROY
     if ( $ENV{'RUNTESTS_HARNESS'} ) {
         # Restore tables, do nothing else we want to use the database
         # for the other tests as well
-        print "# Leaving database intact on server\n";
+        $self->note("Leaving database intact on server");
         $self->restore();
     } else {
         # We are runnning a stand-alone test, cleanup created databases
-        print "# Cleaning up...\n";
+        $self->note("Cleaning up...");
 
         # Restore database state since we may not actually delete it in
         # the cleanup - it may be defined as a preloaded database
