@@ -6,7 +6,7 @@ use warnings;
 use File::Find;
 use File::Spec;
 use Getopt::Long;
-use Test::Harness qw( &runtests $verbose );
+use TAP::Harness;
 
 my $opts = {
   clean => 0,
@@ -58,14 +58,14 @@ $SIG{'HUP'} = $SIG{'KILL'} = $SIG{'INT'} = sub {
 };
 
 # Harness
-$verbose = $opts->{verbose};
+my $harness = TAP::Harness->new({verbosity => $opts->{verbose}});
 
 # Set environment variables
 $ENV{'RUNTESTS_HARNESS'} = 1;
 
 # Run all specified tests
 eval {
-  runtests(@no_clean_tests);
+  $harness->runtests(@no_clean_tests);
 };
 
 clean();
@@ -155,7 +155,7 @@ sub clean {
   if($opts->{clean}) {
     my @new_tests = get_all_tests();
     my @clean_tests = grep { $_ =~ /CLEAN\.t$/ } @new_tests;
-    eval { runtests(@clean_tests) };
+    eval { $harness->runtests(@clean_tests); };
     warn $@ if $@;
   }
   return;
