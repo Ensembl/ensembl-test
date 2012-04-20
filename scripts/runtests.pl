@@ -52,13 +52,12 @@ if ($opts->{list}) {
 
 # Make sure proper cleanup is done if the user interrupts the tests
 $SIG{'HUP'} = $SIG{'KILL'} = $SIG{'INT'} = sub { 
-  warn "\n\nINTERRUPT SIGNAL RECEIVED\n\n"; 
-  clean(); 
-  exit 
+  warn "\n\nINTERRUPT SIGNAL RECEIVED\n\n";
+  exit;
 };
 
 # Harness
-my $harness = TAP::Harness->new({verbosity => $opts->{verbose}});
+my $harness = TAP::Harness->new({verbosity => $opts->{verbose}, ignore_exit => 1});
 
 # Set environment variables
 $ENV{'RUNTESTS_HARNESS'} = 1;
@@ -67,9 +66,6 @@ $ENV{'RUNTESTS_HARNESS'} = 1;
 eval {
   $harness->runtests(@no_clean_tests);
 };
-
-clean($input_files_directories);
-
 
 sub usage {
     print <<EOT;
@@ -155,15 +151,14 @@ sub get_all_tests {
   return @out;
 }
 
-sub clean {
-  my ($input_files_directories) = @_;
-  
+sub DESTROY {
   # Unset environment variable indicating final cleanup should be
   # performed
   delete $ENV{'RUNTESTS_HARNESS'};
   if($opts->{clean}) {
     my @clean_tests = grep { $_ =~ /CLEAN\.t$/ } @tests;
     eval { $harness->runtests(@clean_tests) };
+    warn $@ if $@;
   }
   return;
 }
