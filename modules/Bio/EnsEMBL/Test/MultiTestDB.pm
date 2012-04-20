@@ -18,6 +18,7 @@ use warnings;
 
 use DBI;
 use Data::Dumper;
+use File::Copy;
 use File::Spec::Functions;
 use IO::File;
 use IO::Dir;
@@ -68,12 +69,8 @@ sub new
     my $target_file = catfile($self->curr_dir() , 'CLEAN.t');
 
     if (! -e $target_file) {
-        my $clean_file =
-          catfile( ( File::Spec->splitpath(__FILE__) )[1], 'CLEAN.pl' );
-
-        if ( system( 'cp', $clean_file, $target_file ) ) {
-            warning("# !! Could not copy $clean_file to $target_file\n");
-        }
+      my $clean_file = catfile( ( File::Spec->splitpath(__FILE__) )[1], 'CLEAN.pl' );
+      copy($clean_file, $target_file ) or warning("# !! Could not copy $clean_file to $target_file\n");
     }
 
     if ( !defined $species ) {
