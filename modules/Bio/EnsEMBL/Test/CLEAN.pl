@@ -27,7 +27,7 @@ foreach my $species ( keys %{ $db_conf->{'databases'} } ) {
     my $multi = Bio::EnsEMBL::Test::MultiTestDB->new($species);
 }
 
-note 'Deleting $curr_file';
+note "Deleting $curr_file";
 my $result = unlink $curr_file;
 ok($result, 'Unlink of '.$curr_file.' worked');
 
