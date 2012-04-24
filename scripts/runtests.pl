@@ -141,7 +141,7 @@ sub get_all_tests {
     }
     #Otherwise add it if it was a test
     else {
-      push(@files, $file) if $is_test->($file);
+      push(@out, $file) if $is_test->($file);
     }
   }
 
