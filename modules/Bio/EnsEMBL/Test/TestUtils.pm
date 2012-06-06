@@ -43,7 +43,7 @@ use Exporter;
 use Devel::Peek;
 use Devel::Cycle;
 use Error qw(:try);
-
+use IO::String;
 use PadWalker qw/peek_our peek_my/;
 
 use vars qw( @ISA @EXPORT );
@@ -51,7 +51,7 @@ use vars qw( @ISA @EXPORT );
 
 
 @ISA    = qw(Exporter);
-@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs);
+@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams);
 
 =head2 test_getter_setter
 
@@ -137,6 +137,43 @@ sub count_rows
     my ($count) = $sth->fetchrow_array();
 
     return $count;
+}
+
+=head2 capture_std_streams
+
+  Arg [1]     : CodeRef callback to execute which will attempt to write to STD streams
+  Arg [2]     : Boolean 1-dump variables
+  Example     : capture_std_streams(sub { 
+                 my ($stdout_ref, $stderr_ref) = @_; 
+                 print 'hello'; 
+                 is(${$stdout_ref}, 'hello', 'STDOUT contains expected';) 
+                });
+  Description : Provides access to the STDOUT and STDERR streams captured into
+                references. This allows you to assert code which writes to
+                these streams but offers no way of changing their output
+                stream.
+  Returntype  : None
+  Exceptions  : None
+  Caller      : test scripts
+
+=cut
+
+sub capture_std_streams {
+  my ($callback) = @_;
+  
+  my ($stderr_string, $stdout_string) = (q{}, q{});
+  
+  my $new_stderr = IO::String->new(\$stderr_string);
+  my $old_stderr_fh = select(STDERR);
+  local *STDERR = $new_stderr;
+  
+  my $new_stdout = IO::String->new(\$stdout_string);
+  my $old_stdout_fh = select(STDOUT);
+  local *STDOUT = $new_stdout;
+  
+  $callback->(\$stdout_string, \$stderr_string);
+  
+  return;
 }
 
 =head2 find_circular_refs
@@ -257,6 +294,5 @@ sub _count_cycles {
 	$cycle_found = 1;
    }  
 }
-
 
 1;
