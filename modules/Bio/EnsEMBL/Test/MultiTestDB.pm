@@ -72,17 +72,23 @@ use constant {
 };
 
 sub new {
-  my ($class, $species) = @_;
+  my ($class, $species, $user_submitted_curr_dir, $skip_database_loading) = @_;
 
   my $self = bless {}, $class;
-
-  # Go and grab the current directory and store it away
-  my ( $package, $file, $line ) = caller;
-  my $curr_dir = ( File::Spec->splitpath($file) )[1];
-  if (!defined($curr_dir) || $curr_dir eq q{}) {
-    $curr_dir = curdir();
+  
+  #If told the current directory where config lives then use it
+  if($user_submitted_curr_dir) {
+    $self->curr_dir($user_submitted_curr_dir);
   }
-  $self->curr_dir($curr_dir);
+  else {
+  # Go and grab the current directory and store it away
+    my ( $package, $file, $line ) = caller;
+    my $curr_dir = ( File::Spec->splitpath($file) )[1];
+    if (!defined($curr_dir) || $curr_dir eq q{}) {
+      $curr_dir = curdir();
+    }
+    $self->curr_dir($curr_dir);
+  }
 
   if($ENV{'RUNTESTS_HARNESS'}) {
     my $target_file = catfile($self->curr_dir() , 'CLEAN.t');
@@ -99,14 +105,21 @@ sub new {
       $self->load_config();
   }
   else {
-    # Load the databases and generate the conf hash
-    $self->load_databases();
-    # Freeze configuration in a file
-    $self->store_config();
+    if(!$skip_database_loading) {
+      # Load the databases and generate the conf hash
+      $self->load_databases();
+      # Freeze configuration in a file
+      $self->store_config();
+    }
+    else {
+      $self->{conf} = {};
+    }
   }
 
   # Generate the db_adaptors from the $self->{'conf'} hash
-  $self->create_adaptors();
+  if(!$skip_database_loading) {
+    $self->create_adaptors();
+  }
 
   return $self;
 }
@@ -158,26 +171,119 @@ sub store_config {
 
 sub create_adaptors {
   my ($self) = @_;
-
   foreach my $dbtype (keys %{$self->{conf}}) {
-    my $db = $self->{conf}->{$dbtype};
-    my $module = $db->{module};
-    my %dnadb_params;
-    if($dbtype eq 'funcgen') {
-      %dnadb_params = map { ("-dnadb_${_}", $db->{"dnadb_${_}"}) } qw/host user pass port name/;
+    $self->create_adaptor($dbtype);
+  }
+  return;
+}
+
+sub create_adaptor {
+  my ($self, $dbtype) = @_;
+  my $db = $self->{conf}->{$dbtype};
+  my $module = $db->{module};
+  my %dnadb_params;
+  if($dbtype eq 'funcgen') {
+    %dnadb_params = map { ("-dnadb_${_}", $db->{"dnadb_${_}"}) } qw/host user pass port name/;
+  }
+  if(eval "require $module") {
+    my %args = map { ( "-${_}", $db->{$_} ) } qw/dbname user pass port host driver species/;
+    my $adaptor = eval{ $module->new(%args) };
+    if($EVAL_ERROR) {
+      $self->diag("!! Could not instantiate $dbtype DBAdaptor: $EVAL_ERROR");
     }
-    if(eval "require $module") {
-      my %args = map { ( "-${_}", $db->{$_} ) } qw/dbname user pass port host driver species/;
-      my $adaptor = eval{ $module->new(%args) };
-      if($EVAL_ERROR) {
-        $self->diag("!! Could not instantiate $dbtype DBAdaptor: $EVAL_ERROR");
-      }
-      else {
-        $self->{db_adaptors}->{$dbtype} = $adaptor;
-      }
+    else {
+      $self->{db_adaptors}->{$dbtype} = $adaptor;
     }
   }
+  return;
+}
 
+sub db_conf {
+  my ($self) = @_;
+  if(! $self->{db_conf}) {
+    # Create database from conf and from zip files
+    my $conf_file = catfile( $self->curr_dir(), CONF_FILE );
+  
+    if ( !-e $conf_file ) {
+      throw("Required conf file '$conf_file' does not exist");
+    }
+  
+    my $db_conf = eval {do $conf_file};
+    die "Could not eval '$conf_file': $EVAL_ERROR" if $EVAL_ERROR;
+    die "Error while loading config file" if ! defined $db_conf;
+    $self->{db_conf} = $db_conf;
+  }
+  return $self->{db_conf};
+}
+
+sub dbi_connection {
+  my ($self) = @_;
+  if(!$self->{dbi_connection}) {
+    my $db = $self->_db_conf_to_dbi($self->db_conf(), {mysql_local_infile => 1});
+    if ( ! defined $db ) {
+      $self->diag("!! Can't connect to database: ".$DBI::errstr);
+      return;
+    }
+    $self->{dbi_connection} = $db;
+  }
+  return $self->{dbi_connection};
+}
+
+sub disconnect_dbi_connection {
+  my ($self) = @_;
+  if($self->{dbi_connection}) {
+    my $db = $self->dbi_connection();
+    $db->disconnect();
+    delete $self->{dbi_connection};
+  }
+  return;
+}
+
+sub load_database {
+  my ($self, $dbtype) = @_;
+  my $db_conf = $self->db_conf();
+  my $databases = $db_conf->{databases};
+  my $preloaded = $db_conf->{preloaded} || {};
+  my $species = $self->species();
+  
+  if(! $databases->{$species}) {
+    die "Requested a database for species $species but the MultiTestDB.conf knows nothing about this";
+  }
+  
+  my $config_hash = { %$db_conf };
+  delete $config_hash->{databases};
+  $config_hash->{module} = $databases->{$species}->{$dbtype};
+  $self->{conf}->{$dbtype} = $config_hash;
+  my $dbname = $preloaded->{$species}->{$dbtype};
+  my $db = $self->dbi_connection();
+  if($dbname && $self->_db_exists($db, $dbname)) {
+    $config_hash->{dbname} = $dbname;
+    $config_hash->{preloaded} = 1;
+  }
+  else {
+    if(! $dbname) {
+      $dbname = $self->_create_db_name($dbtype);
+      delete $config_hash->{preloaded};
+    }
+    else {
+      $config_hash->{preloaded} = 1;
+    }
+
+    $config_hash->{dbname} = $dbname;
+    $self->note("Creating database $dbname");
+
+    my $create_db = $db->do("CREATE DATABASE $dbname");
+    if(! $create_db) {
+      $self->note("!! Could not create database [$dbname]");
+      return;
+    }
+
+    $db->do('use '.$dbname);
+    my $dir_name = catdir( $self->curr_dir(), DUMP_DIR, $species,  $dbtype );
+    $self->load_sql($dir_name, $db);
+    $self->load_txt_dumps($dir_name, $dbname, $db);
+    $self->note("Loaded database '$dbname'");
+  }
   return;
 }
 
@@ -185,78 +291,16 @@ sub load_databases {
   my ($self) = shift; 
   my $species = $self->species();
 
-  $self->note("Trying to load [$species] databases");
-
-  # Create database from conf and from zip files
-  my $conf_file = catfile( $self->curr_dir(), CONF_FILE );
-
-  if ( !-e $conf_file ) {
-      throw("Required conf file '$conf_file' does not exist");
-  }
-
-  my $db_conf = eval {do $conf_file};
-  die "Could not eval '$conf_file': $EVAL_ERROR" if $EVAL_ERROR;
-  die("Error while loading config file") if ! defined $db_conf;
-
+  $self->note("Trying to load [$species] databases");  
   # Create a configuration hash which will be frozen to a file
   $self->{'conf'} = {};
 
-  # Connect to the database
-  my $db = $self->_db_conf_to_dbi($db_conf, {mysql_local_infile => 1});
-  if ( ! defined $db ) {
-    $self->diag("!! Can't connect to database: ".$DBI::errstr);
-    return;
-  }
-
-  my $databases = $db_conf->{databases};
-  my $preloaded = $db_conf->{preloaded} || {};
-
-  if(! $databases->{$species}) {
-    die "Requested a database for specis $species but the MultiTestDB.conf knows nothing about this";
-  }
-
-  my @db_types = keys %{$databases->{$species}};
-
+  my @db_types = keys %{$self->db_conf()->{databases}->{$species}};
   foreach my $dbtype (@db_types) {
-    my $config_hash = { %$db_conf };
-    delete $config_hash->{databases};
-
-    $config_hash->{module} = $databases->{$species}->{$dbtype};
-
-    $self->{conf}->{$dbtype} = $config_hash;
-
-    my $dbname = $preloaded->{$species}->{$dbtype};
-    if($dbname && $self->_db_exists($db, $dbname)) {
-      $config_hash->{dbname} = $dbname;
-      $config_hash->{preloaded} = 1;
-    }
-    else {
-      if(! $dbname) {
-        $dbname = $self->_create_db_name($dbtype);
-        delete $config_hash->{preloaded};
-      }
-      else {
-        $config_hash->{preloaded} = 1;
-      }
-
-      $config_hash->{dbname} = $dbname;
-      $self->note("Creating database $dbname");
-
-      my $create_db = $db->do("CREATE DATABASE $dbname");
-      if(! $create_db) {
-        $self->note("!! Could not create database [$dbname]");
-        return;
-      }
-
-      $db->do('use '.$dbname);
-      my $dir_name = catdir( $self->curr_dir(), DUMP_DIR, $species,  $dbtype );
-      $self->load_sql($dir_name, $db);
-      $self->load_txt_dumps($dir_name, $dbname, $db);
-      $self->note("Loaded database '$dbname'");
-    }
+    $self->load_database($dbtype);
   }
 
-  $db->disconnect();
+  $self->disconnect_dbi_connection();
   return;
 }
 
@@ -335,7 +379,7 @@ sub get_DBAdaptor {
   if(!$self->{db_adaptors}->{$type}) {
     $self->diag("!! Database adaptor of type $type is not available");
     if($die_if_not_found) {
-      die "daptor for $type is not available";
+      die "adaptor for $type is not available";
     }
     return;
   }
