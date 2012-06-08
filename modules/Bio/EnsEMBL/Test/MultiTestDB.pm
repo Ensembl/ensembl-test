@@ -186,7 +186,7 @@ sub create_adaptor {
     %dnadb_params = map { ("-dnadb_${_}", $db->{"dnadb_${_}"}) } qw/host user pass port name/;
   }
   if(eval "require $module") {
-    my %args = map { ( "-${_}", $db->{$_} ) } qw/dbname user pass port host driver species/;
+    my %args = map { ( "-${_}", $db->{$_} ) } qw/dbname user pass port host driver species group/;
     my $adaptor = eval{ $module->new(%args) };
     if($EVAL_ERROR) {
       $self->diag("!! Could not instantiate $dbtype DBAdaptor: $EVAL_ERROR");
@@ -253,6 +253,8 @@ sub load_database {
   my $config_hash = { %$db_conf };
   delete $config_hash->{databases};
   $config_hash->{module} = $databases->{$species}->{$dbtype};
+  $config_hash->{species} = $species;
+  $config_hash->{group} = $dbtype;
   $self->{conf}->{$dbtype} = $config_hash;
   my $dbname = $preloaded->{$species}->{$dbtype};
   my $db = $self->dbi_connection();
@@ -262,7 +264,7 @@ sub load_database {
   }
   else {
     if(! $dbname) {
-      $dbname = $self->_create_db_name($dbtype);
+      $dbname = $self->create_db_name($dbtype);
       delete $config_hash->{preloaded};
     }
     else {
@@ -354,7 +356,6 @@ sub load_txt_dumps {
   foreach my $tablename (@{$tables}) {
     my $txt_file = catfile($dir_name, $tablename.'.txt');
     if(! -f $txt_file || ! -r $txt_file) {
-      $self->note("!! Could not read data file '$txt_file'");
       next;
     }
     my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s` FIELDS ESCAPED BY '\\\\'}, $txt_file, $tablename);
@@ -595,7 +596,7 @@ sub curr_dir {
   return $self->{'_curr_dir'};
 }
 
-sub _create_db_name {
+sub create_db_name {
   my ( $self, $dbtype ) = @_;
 
   my @localtime = localtime();
