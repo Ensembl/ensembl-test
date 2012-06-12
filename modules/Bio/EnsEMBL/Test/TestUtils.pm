@@ -45,13 +45,14 @@ use Devel::Cycle;
 use Error qw(:try);
 use IO::String;
 use PadWalker qw/peek_our peek_my/;
+use Test::Builder;
 
 use vars qw( @ISA @EXPORT );
 
 
 
 @ISA    = qw(Exporter);
-@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams);
+@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams is_rows);
 
 =head2 test_getter_setter
 
@@ -117,7 +118,10 @@ sub debug
 
   Arg [1]    : Bio::EnsEMBL::DBSQL::DBAdaptor $dba
   Arg [2]    : string $tablename
+  Arg [3]    : string $constraint
+  Arg [4]    : Array $params
   Example    : count_rows($human_dba, "gene");
+  Example    : count_rows($human_dba, "gene", 'where analysis_id=?', 1028);
   Description: Returns the number of rows in the table $tablename
   Returntype : int
   Exceptions : none
@@ -129,14 +133,47 @@ sub count_rows
 {
     my $db        = shift;
     my $tablename = shift;
+    my $constraint = shift;
+    my $params     = shift;
 
-    my $sth = $db->dbc->prepare("select count(*) from $tablename");
+    $constraint ||= q{};
+    $params     ||= [];
+    
+    my $sth = $db->dbc->prepare("select count(*) from $tablename $constraint");
 
-    $sth->execute();
+    $sth->execute(@{$params});
 
     my ($count) = $sth->fetchrow_array();
 
     return $count;
+}
+
+=head2 is_rows
+
+  Arg [1]    : int $expected_count
+  Arg [2]    : Bio::EnsEMBL::DBSQL::DBAdaptor $dba
+  Arg [3]    : string $tablename
+  Arg [4]    : string $constraint
+  Arg [5]    : Array $params
+  Example    : is_rows(20, $human_dba, "gene");
+  Example    : is_rows(0, $human_dba, "gene", 'where analysis_id =?', 1025);
+  Description: Asserts the count returned is the same as the expected value
+  Returntype : None
+  Exceptions : None
+  Caller     : test scripts
+
+=cut
+
+sub is_rows {
+  my ($expected_count, $db, $tablename, $constraint, $params) = @_;
+  $constraint ||= q{};
+  my $actual_count = count_rows($db, $tablename, $constraint, $params);
+  my $joined_params = join(q{, }, @{($params || [] )});
+  my $name = sprintf(q{Asserting row count is %d from %s with constraint '%s' with params [%s]}, 
+    $expected_count, $tablename, $constraint, $joined_params
+  );
+  Test::Builder->new()->is_num($actual_count, $expected_count, $name);
+  return;
 }
 
 =head2 capture_std_streams

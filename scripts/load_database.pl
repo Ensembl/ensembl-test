@@ -16,6 +16,7 @@ sub run {
   $self->load();
   $self->report_mysql_cmdline();
   $self->report_patch_cmdline();
+  $self->report_dumper_cmdline();
   return;
 }
 
