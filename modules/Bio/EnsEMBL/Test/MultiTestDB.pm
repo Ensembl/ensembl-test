@@ -661,7 +661,9 @@ sub DESTROY {
     # Restore tables, do nothing else we want to use the database
     # for the other tests as well
     $self->note('Leaving database intact on server');
-    $self->restore();
+    if(!$ENV{'RUNTESTS_HARNESS_NORESTORE'}) {
+      $self->restore();
+    }
   } else {
     # We are runnning a stand-alone test, cleanup created databases
     $self->note('Cleaning up...');
