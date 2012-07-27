@@ -27,6 +27,11 @@ it for all tests at the expense of test isolation. Your tests should leave the
 database in a consistent state for the next test case and never assume
 perfect isolation.
 
+You can also use the env variable C<RUNTESTS_HARNESS_NORESTORE> which avoids
+the running of restore() when C<RUNTESTS_HARNESS> is active. B<ONLY> use this
+when you are going to destory a MultiTestDB but DBs should not be cleaned up
+or restored e.g. threads. See dbEntries.t for an example of how to use it.
+
 =cut
 
 use strict;
