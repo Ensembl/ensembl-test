@@ -52,7 +52,7 @@ use vars qw( @ISA @EXPORT );
 
 
 @ISA    = qw(Exporter);
-@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams is_rows);
+@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams is_rows warns_like);
 
 =head2 test_getter_setter
 
@@ -210,6 +210,33 @@ sub capture_std_streams {
   
   $callback->(\$stdout_string, \$stderr_string);
   
+  return;
+}
+
+=head2 warns_like
+
+  Arg [1]    : CodeRef code to run; can be a code ref or a block since we can prototype into a code block
+  Arg [2]    : Regex regular expression to run against the thrown warnings
+  Arg [3]    : String message to print to screen
+  Example    : warns_like { do_something(); } qr/^expected warning$/, 'I expect this!';
+               warns_like(sub { do_something(); }, qr/^expected$/, 'I expect this!');
+  Description: Attempts to run the given code block and then regexs the captured
+               warnings raised to SIG{'__WARN__'}. This is done using 
+               Test::Builder so we are Test::More compliant. 
+  Returntype : None
+  Exceptions : none
+  Caller     : test scripts
+
+=cut
+
+sub warns_like (&$;$) {
+  my ($callback, $regex, $msg) = @_;
+  my $warnings;
+  local $SIG{'__WARN__'} = sub {
+    $warnings .= $_[0];
+  };
+  $callback->();
+  Test::Builder->new()->like($warnings, $regex, $msg);
   return;
 }
 
