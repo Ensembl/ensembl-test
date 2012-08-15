@@ -52,7 +52,7 @@ use vars qw( @ISA @EXPORT );
 
 
 @ISA    = qw(Exporter);
-@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams is_rows warns_like);
+@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams is_rows warns_like mock_object);
 
 =head2 test_getter_setter
 
@@ -107,11 +107,8 @@ sub test_getter_setter
 
 =cut
 
-sub debug
-{
-    if ($::verbose) {
-        print STDERR @_, "\n";
-    }
+sub debug {
+  Test::Builder->new()->note(@_);
 }
 
 =head2 count_rows
@@ -172,8 +169,7 @@ sub is_rows {
   my $name = sprintf(q{Asserting row count is %d from %s with constraint '%s' with params [%s]}, 
     $expected_count, $tablename, $constraint, $joined_params
   );
-  Test::Builder->new()->is_num($actual_count, $expected_count, $name);
-  return;
+  return Test::Builder->new()->is_num($actual_count, $expected_count, $name);
 }
 
 =head2 capture_std_streams
@@ -236,8 +232,26 @@ sub warns_like (&$;$) {
     $warnings .= $_[0];
   };
   $callback->();
-  Test::Builder->new()->like($warnings, $regex, $msg);
-  return;
+  return Test::Builder->new()->like($warnings, $regex, $msg);
+}
+
+=head2 mock_object
+
+  Arg [1]    : Object used to mock
+  Arg [2]    : Boolean 1-dump variables
+  Example    : my $mock = mock_object($obj); $mock->hello(); is($mock->_called('hello'), 1);
+  Description: Returns a mock object which counts the number of times a method
+               is invoked on itself. This is very useful to use when we want
+               to make sure certain methods are & are not called.
+  Returntype : Bio::EnsEMBL::Test::TestUtils::MockObject
+  Exceptions : none
+  Caller     : test scripts
+
+=cut
+
+sub mock_object {
+  my ($obj) = @_;
+  return Bio::EnsEMBL::Test::TestUtils::MockObject->new($obj);
 }
 
 =head2 find_circular_refs
@@ -357,6 +371,41 @@ sub _count_cycles {
    if (scalar(@cycle_array) > 0) {
 	$cycle_found = 1;
    }  
+}
+
+#See mock_object() for more information about how to use
+package Bio::EnsEMBL::Test::TestUtils::MockObject;
+
+use base qw/Bio::EnsEMBL::Utils::Proxy/;
+
+sub __clear {
+  my ($self) = @_;
+  $self->{__counts} = undef;
+}
+
+sub __called {
+  my ($self, $method) = @_;
+  return $self->{__counts}->{$method} if exists $self->{__counts}->{$method};
+  return 0;
+}
+
+sub __is_called {
+  my ($self, $method, $times, $msg) = @_;
+  my $calls = $self->__called($method);
+  return Test::Builder->new()->is_num($calls, $times, $msg);
+}
+
+sub __resolver {
+  my ($invoker, $package, $method) = @_;
+  return sub {
+    my ($self, @args) = @_;
+    my $wantarray = wantarray();
+    $self->{__counts}->{$method} = 0 unless $self->{__counts}->{$method}; 
+    my @capture = $self->__proxy()->$method(@args);
+    $self->{__counts}->{$method}++;
+    return @capture if $wantarray;
+    return shift @capture;
+  };
 }
 
 1;
