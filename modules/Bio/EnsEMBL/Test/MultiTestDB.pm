@@ -76,6 +76,22 @@ use constant {
   DUMP_DIR  => 'test-genome-DBs'
 };
 
+sub get_db_conf {
+  my ($class, $current_directory) = @_;
+  # Create database from local config file
+  my $conf_file = catfile( $current_directory, CONF_FILE );
+
+  if ( !-e $conf_file ) {
+    throw("Required conf file '$conf_file' does not exist");
+  }
+
+  my $db_conf = eval {do $conf_file};
+  die "Could not eval '$conf_file': $EVAL_ERROR" if $EVAL_ERROR;
+  die "Error while loading config file" if ! defined $db_conf;
+  
+  return $db_conf;
+}
+
 sub new {
   my ($class, $species, $user_submitted_curr_dir, $skip_database_loading) = @_;
 
@@ -206,17 +222,7 @@ sub create_adaptor {
 sub db_conf {
   my ($self) = @_;
   if(! $self->{db_conf}) {
-    # Create database from conf and from zip files
-    my $conf_file = catfile( $self->curr_dir(), CONF_FILE );
-  
-    if ( !-e $conf_file ) {
-      throw("Required conf file '$conf_file' does not exist");
-    }
-  
-    my $db_conf = eval {do $conf_file};
-    die "Could not eval '$conf_file': $EVAL_ERROR" if $EVAL_ERROR;
-    die "Error while loading config file" if ! defined $db_conf;
-    $self->{db_conf} = $db_conf;
+    $self->{db_conf} = $self->get_db_conf($self->curr_dir());
   }
   return $self->{db_conf};
 }
