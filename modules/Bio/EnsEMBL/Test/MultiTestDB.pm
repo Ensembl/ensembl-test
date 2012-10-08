@@ -92,6 +92,11 @@ sub get_db_conf {
   return $db_conf;
 }
 
+sub base_dump_dir {
+  my ($class, $current_directory) = @_;
+  return catdir( $current_directory, DUMP_DIR);
+}
+
 sub new {
   my ($class, $species, $user_submitted_curr_dir, $skip_database_loading) = @_;
 
@@ -292,7 +297,8 @@ sub load_database {
     }
 
     $db->do('use '.$dbname);
-    my $dir_name = catdir( $self->curr_dir(), DUMP_DIR, $species,  $dbtype );
+    my $base_dir = $self->base_dump_dir($self->curr_dir());
+    my $dir_name = catdir( $base_dir, $species,  $dbtype );
     $self->load_sql($dir_name, $db);
     $self->load_txt_dumps($dir_name, $dbname, $db);
     $self->note("Loaded database '$dbname'");
