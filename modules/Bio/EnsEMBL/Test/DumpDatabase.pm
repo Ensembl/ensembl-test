@@ -10,13 +10,15 @@ use File::Path qw/mkpath/;
 use Scalar::Util qw/looks_like_number/;
 
 sub new {
-  my ($class, $dba, $base_directory) = @_;
+  my ($class, $dba, $base_directory, $old_schema_details, $new_schema_details) = @_;
   my $self = bless({}, (ref($class) || $class));
   die "No DBA given" unless $dba;
   die "No directory given" unless $base_directory;
   
   $self->dba($dba);
   $self->base_directory($base_directory);
+  $self->old_schema_details($old_schema_details);
+  $self->new_schema_details($new_schema_details);
   return $self;
 }
 
@@ -24,6 +26,7 @@ sub dump {
   my ($self) = @_;
   $self->dump_sql();
   $self->dump_tables();
+  $self->delete_tables();
   return;
 }
 
@@ -43,6 +46,18 @@ sub base_directory {
   	$self->{'base_directory'} = $base_directory;
   }
   return $self->{'base_directory'};
+}
+
+sub old_schema_details {
+  my ($self, $old_schema_details) = @_;
+  $self->{'old_schema_details'} = $old_schema_details if defined $old_schema_details;
+  return $self->{'old_schema_details'};
+}
+
+sub new_schema_details {
+  my ($self, $new_schema_details) = @_;
+  $self->{'new_schema_details'} = $new_schema_details if defined $new_schema_details;
+  return $self->{'new_schema_details'};
 }
 
 sub directory {
@@ -72,15 +87,19 @@ sub dump_sql {
   my @real_tables = @{$self->_tables()};
   my @views       = @{$self->_views()};
   
+  my $schema_differences = $self->_schema_differences();
+  #Do not redump if there were no schema changes (could be just a data patch)
+  return if ! $schema_differences;
+    
   work_with_file($file, 'w', sub {
     my ($fh) = @_;
     foreach my $table (@real_tables) {
       my $sql = $h->execute_single_result(-SQL => "show create table ${table}", -CALLBACK => sub { return $_[0]->[1] });
-      print $fh "$sql;\n";
+      print $fh "$sql;\n\n";
     }
     foreach my $view (@views) {
       my $sql = $h->execute_single_result(-SQL => "show create view ${view}", -CALLBACK => sub { return $_[0]->[1] });
-      print $fh "$sql;\n";
+      print $fh "$sql;\n\n";
     }
     return;
   });
@@ -92,6 +111,9 @@ sub dump_tables {
   my ($self) = @_;
   my $tables = $self->_tables();
   foreach my $table (@{$tables}) {
+    my $data_difference = $self->_data_differences($table);
+    #Skip this iteration of the loop if there were no data differences
+    next if ! $data_difference;
     $self->dump_table($table);
   }
   return;
@@ -125,16 +147,30 @@ sub dump_table {
   return;
 }
 
+sub delete_tables {
+  my ($self) = @_;
+  my $old_schema_details = $self->old_schema_details();
+  my $new_schema_details = $self->new_schema_details();
+  return unless $old_schema_details && $new_schema_details;
+  foreach my $old_table (keys %{$old_schema_details}) {
+    if(! exists $new_schema_details->{$old_table}) {
+      my $file = File::Spec->catfile($self->directory(), $old_table.'.txt');
+      unlink $file or die "Cannot unlink the file '$file': $!";
+    }
+  }
+  return;
+}
+
 sub _tables {
   my ($self) = @_;
   my $lookup = $self->_table_lookup();
-  return [grep { $lookup->{$_} ne 'VIEW' } keys %$lookup];
+  return [sort grep { $lookup->{$_} ne 'VIEW' } keys %$lookup ];
 }
 
 sub _views {
   my ($self) = @_;
   my $lookup = $self->_table_lookup();
-  return [grep { $lookup->{$_} eq 'VIEW' } keys %$lookup];
+  return [sort grep { $lookup->{$_} eq 'VIEW' } keys %$lookup];
 }
 
 sub _table_lookup {
@@ -145,6 +181,37 @@ sub _table_lookup {
     $self->{_table_lookup} = $lookup;
   }
   return $self->{_table_lookup};
+}
+
+sub _schema_differences {
+  my ($self) = @_;
+  my $old_schema_details = $self->old_schema_details();
+  my $new_schema_details = $self->new_schema_details();
+  
+  #Assume there is a difference if none or 1 hash was provided
+  return 1 unless $old_schema_details && $new_schema_details;
+  
+  my $old_schema_concat = join(qq{\n}, map { $old_schema_details->{$_}->{create} } sort keys %$old_schema_details);
+  my $new_schema_concat = join(qq{\n}, map { $new_schema_details->{$_}->{create} } sort keys %$old_schema_details);
+  
+  return ( $old_schema_concat ne $new_schema_concat ) ? 1 : 0;
+}
+
+sub _data_differences {
+  my ($self, $table) = @_;
+  my $old_schema_details = $self->old_schema_details();
+  my $new_schema_details = $self->new_schema_details();
+  
+  #Assume there is a difference if none or 1 hash was provided
+  return 1 unless $old_schema_details && $new_schema_details;
+  
+  return ( $old_schema_details->{$table}->{checksum} ne $new_schema_details->{$table}->{checksum}) ? 1 : 0;
+}
+
+sub _delete_table_file {
+  my ($self, $table) = @_;
+  
+  return;
 }
 
 sub DESTROY {

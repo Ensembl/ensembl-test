@@ -10,13 +10,13 @@ use File::Basename;
 use Getopt::Long;
 use Pod::Usage;
 
-#local $ENV{RUNTESTS_HARNESS} = 1;
-
 sub run {
   my ($class) = @_;
   my $self = bless({}, 'main');
   $self->args();
+  $self->has_config();
   $self->process();
+  $self->cleanup_CLEAN();
   return;
 }
 
@@ -42,6 +42,15 @@ sub args {
   return $self->{opts} = $opts;
 }
 
+sub has_config {
+  my ($self) = @_;
+  my $config = File::Spec->catfile($self->{opts}->{curr_dir}, 'MultiTestDB.conf');
+  if(! -f $config) {
+    die "Cannot find a MultiTestDB.conf at '${config}'. Check your --curr_dir command line option";
+  }
+  return;
+}
+
 sub process {
   my ($self) = @_;
   my $dir = $self->{opts}->{curr_dir};
@@ -52,14 +61,39 @@ sub process {
     foreach my $group (keys %{$config->{databases}->{$species}}) {
       print STDOUT "INFO: Processing species '$species' and group '$group'\n";
       my $dba = $multi->get_DBAdaptor($group);
+      my $schema_details = $self->schema_details($dba);
       $self->patch_db($dba);
-      $self->dump_db($dba);
+      $self->dump_db($dba, $schema_details);
     }
     $multi = undef;
     print STDOUT "INFO: Finished working with species '$species'\n";
     print STDOUT '='x80; print STDOUT "\n";
   }
   return;
+}
+
+sub schema_details {
+  my ($self, $dba) = @_;
+  my $h = $dba->dbc()->sql_helper();
+  my $tables_sql = q{select TABLE_NAME, TABLE_TYPE from information_schema.TABLES where TABLE_SCHEMA = DATABASE()};
+  my $tables = $h->execute(-SQL => $tables_sql);
+  my %details;
+  foreach my $t (@{$tables}) {
+    my ($table_name, $table_type) = @{$t};
+    
+    my $checksum_sql = sprintf('CHECKSUM TABLE `%s`', $table_name);
+    my $checksum = $h->execute(-SQL => $checksum_sql);
+    
+    my $create_sql = sprintf('SHOW CREATE TABLE `%s`', $table_name);
+    my $create = $h->execute(-SQL => $create_sql);
+    
+    $details{$table_name} = {
+      is_table  => ($table_type eq 'BASE TABLE' ? 1 : 0),
+      checksum  => $checksum->[0]->[1],
+      create    => $create->[0]->[1],
+    };
+  } 
+  return \%details;
 }
 
 sub patch_db {
@@ -89,11 +123,21 @@ sub patch_db {
 }
 
 sub dump_db {
-  my ($self, $dba) = @_;
+  my ($self, $dba, $old_schema_details) = @_;
+  my $new_schema_details = $self->schema_details($dba);
   my $dir = Bio::EnsEMBL::Test::MultiTestDB->base_dump_dir($self->{opts}->{curr_dir});
   print STDERR "Will dump database to root of $dir\n";
-  my $dumper = Bio::EnsEMBL::Test::DumpDatabase->new($dba, $dir);
+  my $dumper = Bio::EnsEMBL::Test::DumpDatabase->new($dba, $dir, $old_schema_details, $new_schema_details);
   $dumper->dump();
+  return;
+}
+
+sub cleanup_CLEAN {
+  my ($self) = @_;
+  my $clean_test = File::Spec->catfile($self->{opts}->{curr_dir}, 'CLEAN.t');
+  if(-f $clean_test) {
+    unlink $clean_test;
+  }
   return;
 }
 
@@ -106,3 +150,40 @@ sub get_config {
 run();
 
 1;
+__END__
+
+=head1 NAME
+
+  patch_test_databases.pl
+
+=head1 SYNOPSIS
+
+  ./patch_test_databases.pl --curr_dir ensembl/modules/t [--schema_patcher PATCHER]
+
+=head1 DESCRIPTION
+
+For a given directory where tests are normally run (one with a 
+MultiTestDB.conf) this code will iterate through all available databases, 
+load them into the target database server, run schema_patcher.pl and then
+redump into a single SQL file & multiple txt files. The code will also
+ensure that redundant table dumps are cleaned up and will only initate a dump
+when a data point has changed.
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--curr_dir>
+
+Current directory. Should be set to the directory which has your configuration files
+
+=item B<--schema_patcher>
+
+Specify the location of the schema patcher script to use. If not specified we
+assume a location of
+
+  dirname(__FILE__)/../../ensembl/misc-scripts/schema_patcher.pl
+
+=back
+
+=cut
