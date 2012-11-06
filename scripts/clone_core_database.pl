@@ -1,26 +1,5 @@
 #!/usr/bin/env perl
 
-=pod
-my $json = <<'JSON';
-{
-  "human" : {
-    "core" : {
-      "regions" : [
-        ["6", 1000000, 2000000],
-        ["X", 1, 3000000],
-        ["Y", 1, 100000],
-        ["Y", 2649521, 4000000]
-      ],
-      "adaptors" : [
-        { "name" : "gene", "method" : "fetch_all_by_Slice", "args" : [] },
-        { "name" : "repeatfeature" }
-      ]
-    }
-  }
-}
-JSON
-=cut
-
 use strict;
 use warnings;
 
@@ -115,11 +94,12 @@ sub target_dbc {
 
 sub load_json {
   my ($self) = @_;
-  my $json = $self->{opts}->{json};
-  pod2usage(-msg => 'No -json configuration given', -verbose => 1, -exitval => 1) unless $json;
-  pod2usage(-msg => "JSON location $json does not exist", -verbose => 1, -exitval => 1) unless -f $json;
-  my $slurp = slurp($json);
-  return $self->{json} = decode_json($slurp);
+  my $json_location = $self->{opts}->{json};
+  pod2usage(-msg => 'No -json configuration given', -verbose => 1, -exitval => 1) unless $json_location;
+  pod2usage(-msg => "JSON location $json_location does not exist", -verbose => 1, -exitval => 1) unless -f $json_location;
+  my $slurp = slurp($json_location);
+  my $json = JSON->new()->relaxed(1);
+  return $self->{json} = $json->decode($slurp);
 }
 
 sub process {
@@ -381,3 +361,109 @@ sub _load_transcript {
   $f->$_() for qw/analysis stable_id get_all_supporting_features get_all_Attributes get_all_DBEntries get_all_alternative_translations get_all_SeqEdits/;
   return;
 }
+
+__END__
+
+=head1 NAME
+
+  clone_core_database.pl
+
+=head1 SYNOPSIS
+
+  clone_core_database.pl  -host HOST [-port PORT] -user USER [-pass PASS] -dbname DBNAME \
+                          [-registry REG] \
+                          -species SPECIES \
+                          -dest_host HOST -dest_port PORT -dest_user USER -dest_pass PASS \
+                          -json JSON \
+                          -directory DIR \
+                          [-drop_database]
+
+=head1 DESCRIPTION
+
+=head1 PARAMETERS
+
+=over 8
+
+=item B<--host | --hostname | -h>
+
+Host of the server to use as a source. Not required if you are using a registry file
+
+=item B<--port | --P>
+
+Port of the server to use as a source. Not required if you are using a registry file
+
+=item B<--user | --username | -u>
+
+Username of the server to use as a source. Not required if you are using a registry file
+
+=item B<--pass | --password | -p>
+
+Password of the server to use as a source. Not required if you are using a registry file
+
+=item B<--dbname | --database | --db>
+
+Database name of the server to use as a source. Not required if you are using a registry file
+
+=item B<--species>
+
+Species name to use. Not required if you are using a registry file
+
+=item B<--registry | --reg_conf>
+
+Registry file to load data from
+
+=item B<--dest_host | --dest_hostname | --dh>
+
+Target host for the database. Required parameter
+
+=item B<--dest_port | --dP>
+
+Target port for the database. Required parameter
+
+=item B<--dest_user | --dest_username | --du>
+
+Target user for the database. Required parameter
+
+=item B<--dest_pass | --dest_password | --dp>
+
+Target password for the database.
+
+=item B<--json>
+
+JSON configuration file which informs this script of the regions of data
+to grab, from which species/group and what adaptors should be called to
+fetch data for. If just a name is given to the adaptor array we assume
+a call to C<fetch_all_by_Slice()> is wanted. Otherwise we will use the
+method and the given arguments and store that data.
+
+An example configuration is given below. JSON is in relaxed mode so
+inline shell comments (#) and trailing commas are allowed.
+
+  {
+    "human" : {
+      "core" : {
+        "regions" : [
+          ["6", 1000000, 2000000],
+          ["X", 1, 3000000],
+          ["Y", 1, 100000],
+          ["Y", 2649521, 4000000]
+        ],
+        "adaptors" : [
+          { "name" : "gene", "method" : "fetch_all_by_Slice", "args" : [] },
+          { "name" : "repeatfeature" }
+        ]
+      }
+    }
+  }
+
+=item B<--directory>
+
+The directory to dump the data into. You will get 1 TXT file per table and
+1 SQL file for the entire schema.
+
+=item B<--drop_database>
+
+Indicates if you wish to drop the database from the server post flat file
+generation. If not you will have to manually drop the database.
+
+=back
