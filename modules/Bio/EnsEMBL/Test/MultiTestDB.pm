@@ -113,6 +113,9 @@ sub new {
     if (!defined($curr_dir) || $curr_dir eq q{}) {
       $curr_dir = curdir();
     }
+    else {
+      $curr_dir = File::Spec->rel2abs($curr_dir);
+    }
     $self->curr_dir($curr_dir);
   }
 
