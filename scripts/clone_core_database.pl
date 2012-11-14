@@ -8,6 +8,7 @@ use Bio::EnsEMBL::DBSQL::DBConnection;
 use Bio::EnsEMBL::DBSQL::DBAdaptor;
 use Bio::EnsEMBL::Test::DumpDatabase;
 use Bio::EnsEMBL::Utils::IO qw/slurp/;
+use Bio::EnsEMBL::Utils::Scalar qw/scope_guard/;
 use File::Temp qw/tempfile/;
 use Getopt::Long qw/:config no_ignore_case/;
 use JSON;
@@ -116,8 +117,9 @@ sub process {
       my $to = $self->copy_database_structure($species, $group, $dbc);
       $self->copy_globals($from, $to);
       my $slices = $self->copy_regions($from, $to, $regions);
+      my $filter_exceptions = $info->{filter_exceptions};
       foreach my $adaptor_info (@{$adaptors}) {
-        $self->copy_features($from, $to, $slices, $adaptor_info);
+        $self->copy_features($from, $to, $slices, $adaptor_info, $filter_exceptions);
       }
       $self->dump_database($to);
       $self->drop_database($to);
@@ -170,14 +172,17 @@ sub copy_regions {
   my @toplevel_slices;
   my %seq_region_id_list;
   foreach my $region (@{$regions}) {
-    my ($name, $start, $end) = @{$region};
+    my ($name, $start, $end, $coord_system, $version) = @{$region};
+    my $strand = undef;
+    $coord_system ||= 'toplevel';
     #Make the assumption that the core API is OK and that the 3 levels of assembly are chromosome, supercontig and contig
-    my $slice = $slice_adaptor->fetch_by_region('toplevel', $name, $start, $end);
-    if(! defined $slice) {
+    #Also only get those slices which are unique
+    my $slice = $slice_adaptor->fetch_by_region($coord_system, $name, $start, $end, $strand, $version);
+    if(! $slice) {
       print STDERR "Could not find a slice for $name .. $start .. $end\n";
+      next;
     }
     push(@toplevel_slices, $slice);
-
     my $supercontigs;
 
     #May not always have supercontigs
@@ -203,14 +208,26 @@ sub copy_regions {
   my $sr_query = "SELECT a.* FROM seq_region s JOIN assembly a ON (s.seq_region_id = a.cmp_seq_region_id) WHERE seq_region_id IN ($seq_region_ids)";
   $self->copy_data($from, $to, "assembly", $sr_query);
   
+  
+  # Once we've got the original list of slices we have to know if one is an 
+  # assembly what it maps to & bring that seq_region along (toplevel def). If
+  # seq is wanted then user has to specify that region
+  my @seq_region_exception_ids;
+  foreach my $slice (@toplevel_slices) {
+    next if $slice->is_reference();
+    my $exception_features = $slice->get_all_AssemblyExceptionFeatures();
+    foreach my $exception (@{$exception_features}) {
+      push(@seq_region_exception_ids, $slice_adaptor->get_seq_region_id($exception->slice()));
+      push(@seq_region_exception_ids, $slice_adaptor->get_seq_region_id($exception->alternate_slice()));
+    }
+  }
+  
   #Grab the copied IDs from the target DB & use this to drive the copy of assembly exceptions
-  my $asm_sr_ids = $self->get_ids($to, 'asm_seq_region_id','assembly');
-  my $cmp_sr_ids = $self->get_ids($to, 'cmp_seq_region_id','assembly');
-  my $asm_cmp_ids = join(q{,}, @{$asm_sr_ids}, @{$cmp_sr_ids});
+  my $asm_cmp_ids = join(q{,}, @seq_region_exception_ids);
   $self->copy_data($from, $to, 'assembly_exception', "SELECT * FROM assembly_exception WHERE seq_region_id in ($asm_cmp_ids)");
   
   #Now transfer all seq_regions from seq_region into the new DB
-  my @seq_regions_to_copy = (@{$asm_sr_ids}, @{$cmp_sr_ids}), map { $_->get_seq_region_id() } @toplevel_slices;
+  my @seq_regions_to_copy = (@seq_region_exception_ids, (map { $slice_adaptor->get_seq_region_id($_) } @toplevel_slices), keys %seq_region_id_list);
   my $seq_regions_to_copy_in = join(q{,}, @seq_regions_to_copy);
   $self->copy_data($from, $to, 'seq_region', "SELECT * FROM seq_region WHERE seq_region_id in ($seq_regions_to_copy_in)");
   $self->copy_data($from, $to, 'seq_region_attrib', "SELECT * FROM seq_region_attrib WHERE seq_region_id in ($seq_regions_to_copy_in)");
@@ -222,6 +239,14 @@ sub copy_regions {
 sub copy_features {
   my ($self, $from, $to, $slices, $adaptor_info) = @_;
   my $name = $adaptor_info->{name};
+  my $suppress_warnings = $adaptor_info->{suppress_warnings};
+  my $sig_warn;
+  my $sig_warn_guard;
+  if($suppress_warnings) {
+    $sig_warn = $SIG{__WARN__};
+    $sig_warn_guard = scope_guard(sub { $SIG{__WARN__} = $sig_warn });
+    $SIG{__WARN__} = sub {}; #ignore everything
+  }  
   print STDERR "Copying $name features\n";
   my $from_adaptor = $from->get_adaptor($name);
   my $to_adaptor = $to->get_adaptor($name);
@@ -241,8 +266,8 @@ sub copy_features {
         }
       }
       
-      $self->post_process_feature($f);
-      
+      $f = $self->post_process_feature($f, $slice);
+      next unless $f; # means we decided not to store it
       $to_adaptor->store($f);
       $count++;
     }
@@ -328,14 +353,30 @@ sub new_dbname {
 }
 
 sub post_process_feature {
-  my ($self, $f) = @_;
+  my ($self, $f, $slice, $filter_exception) = @_;
+  my $filter = $self->filter_on_exception($f, $slice, $filter_exception);
+  return if $filter;
   if($f->isa('Bio::EnsEMBL::Gene')) {
     $self->_load_gene($f);
   }
   elsif($f->isa('Bio::EnsEMBL::Transcript')) {
     $self->_load_transcript($f);
   }
-  return;
+  elsif($f->isa('Bio::EnsEMBL::RepeatFeature')) {
+    $self->_load_repeat($f);
+  }
+  return $f;
+}
+
+sub filter_on_exception {
+  my ($self, $f, $slice) = @_;
+  if($f->start() < 1) {
+    return 1;
+  }
+  if($f->start() > $slice->end()) {
+    return 1;
+  }
+  return 0;
 }
 
 sub _load_gene {
@@ -359,6 +400,13 @@ sub _load_transcript {
     $e->$_() for qw/analysis stable_id get_all_supporting_features/;
   }
   $f->$_() for qw/analysis stable_id get_all_supporting_features get_all_Attributes get_all_DBEntries get_all_alternative_translations get_all_SeqEdits/;
+  return;
+}
+
+sub _load_repeat {
+  my ($self, $f) = @_;
+  delete $f->repeat_consensus()->{dbID};
+  delete $f->repeat_consensus()->{adaptor};
   return;
 }
 
