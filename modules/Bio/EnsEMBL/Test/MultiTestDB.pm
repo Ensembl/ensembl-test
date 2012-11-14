@@ -46,7 +46,7 @@ use IO::File;
 use IO::Dir;
 use POSIX qw(strftime);
 
-use Bio::EnsEMBL::Utils::IO qw/work_with_file/;
+use Bio::EnsEMBL::Utils::IO qw/slurp work_with_file/;
 use Bio::EnsEMBL::Utils::Exception qw( warning throw );
 
 use base 'Test::Builder::Module';
@@ -85,8 +85,7 @@ sub get_db_conf {
     throw("Required conf file '$conf_file' does not exist");
   }
 
-  my $db_conf = eval {do $conf_file};
-  die "Could not eval '$conf_file': $EVAL_ERROR" if $EVAL_ERROR;
+  my $db_conf = $class->_eval_file($conf_file);
   die "Error while loading config file" if ! defined $db_conf;
   
   return $db_conf;
@@ -159,8 +158,7 @@ sub new {
 sub load_config {
   my ($self) = @_;
   my $conf = $self->get_frozen_config_file_path();
-  eval {$self->{'conf'} = do $conf; };
-  die "Could not read frozen configuration file '$conf': $EVAL_ERROR" if $EVAL_ERROR;
+  $self->{conf} = $self->_eval_file($conf);
   return;
 }
 
@@ -173,6 +171,14 @@ sub get_frozen_config_file_path {
   my $filename = sprintf('%s.%s', $self->species(), FROZEN_CONF_SUFFIX);
   my $conf = catfile($self->curr_dir(), $filename);
   return $conf;
+}
+
+sub _eval_file {
+  my ($self, $file) = @_;
+  my $contents = slurp($file);
+  my $v = eval $contents;
+  die "Could not read in configuration file '$file': $EVAL_ERROR" if $EVAL_ERROR;
+  return $v;
 }
 
 #
