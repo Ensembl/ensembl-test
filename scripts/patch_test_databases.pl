@@ -10,6 +10,9 @@ use File::Basename;
 use Getopt::Long;
 use Pod::Usage;
 
+my %skip_species_list = map { $_ => 1} qw/multi/; 
+my %skip_groups_list = map { $_ => 1} qw/ontology/; 
+
 sub run {
   my ($class) = @_;
   my $self = bless({}, 'main');
@@ -57,8 +60,16 @@ sub process {
   my $config = $self->get_config();
   foreach my $species (keys %{$config->{databases}}) {
     print STDOUT '='x80; print STDOUT "\n";
+    if($skip_species_list{lc($species)}) {
+      print STDOUT "INFO: Skipping '$species' as it is in the patch ignore list\n";
+      next;
+    }
     my $multi = Bio::EnsEMBL::Test::MultiTestDB->new($species, $dir);
     foreach my $group (keys %{$config->{databases}->{$species}}) {
+      if($skip_groups_list{lc($group)}) {
+        print STDOUT "INFO: Skipping '$group' as it is in the patch ignore list\n";
+        next;
+      }
       print STDOUT "INFO: Processing species '$species' and group '$group'\n";
       my $dba = $multi->get_DBAdaptor($group);
       my $schema_details = $self->schema_details($dba);
