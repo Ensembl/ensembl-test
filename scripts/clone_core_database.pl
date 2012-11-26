@@ -16,6 +16,10 @@ use Pod::Usage;
 use POSIX;
 use Scalar::Util qw/looks_like_number/;
 
+my %global_tables = (
+  core => [qw/attrib_type meta coord_system external_db/],
+);
+
 run();
 
 sub run {
@@ -151,10 +155,13 @@ sub drop_database {
   return;
 }
 
+
 sub copy_globals {
   my ($self, $from, $to) = @_;
-  my @tables = qw/attrib_type meta coord_system external_db/;
-  $self->copy_all_data($from, $to, $_) for @tables;
+  my $schema = $from->get_MetaContainer()->single_value_by_key('schema_type');
+  $schema ||= $from->group();
+  my $tables = $global_tables{$schema};
+  $self->copy_all_data($from, $to, $_) for @{$tables};
   return;
 }
 
@@ -356,6 +363,8 @@ sub post_process_feature {
   my ($self, $f, $slice, $filter_exception) = @_;
   my $filter = $self->filter_on_exception($f, $slice, $filter_exception);
   return if $filter;
+  
+  #Core objects
   if($f->isa('Bio::EnsEMBL::Gene')) {
     $self->_load_gene($f);
   }
@@ -365,6 +374,8 @@ sub post_process_feature {
   elsif($f->isa('Bio::EnsEMBL::RepeatFeature')) {
     $self->_load_repeat($f);
   }
+  
+  
   return $f;
 }
 

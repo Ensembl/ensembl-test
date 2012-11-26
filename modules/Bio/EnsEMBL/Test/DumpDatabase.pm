@@ -71,7 +71,13 @@ sub directory {
 
 sub production_name {
   my ($self) = @_;
-  return $self->dba->get_MetaContainer()->get_production_name();
+  eval {
+    my $mc = $self->dba->get_MetaContainer();
+    if($mc->can('get_production_name')) {
+      return $mc->get_production_name();
+    }
+  };
+  return $self->dba->species;
 }
 
 sub group {
