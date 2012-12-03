@@ -444,6 +444,10 @@ __END__
 
 =head1 DESCRIPTION
 
+This script will take a JSON file of regions and adaptor calls and translates
+this into a dump of a core database of controlled content. This gives
+you as realistic a core database as we can provide perfect for testing.
+
 =head1 PARAMETERS
 
 =over 8
