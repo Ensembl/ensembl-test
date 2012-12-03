@@ -57,7 +57,12 @@ sub parse_options {
     
     directory=s
     drop_database
+    
+    help
+    man
   /) or pod2usage(-msg => 'Misconfigured options given', -verbose => 1, -exitval => 1);
+  pod2usage(-verbose => 1, -exitval => 0) if $opts->{help};
+  pod2usage(-verbose => 2, -exitval => 0) if $opts->{man};
   return $self->{opts} = $opts;
 }
 
@@ -524,5 +529,13 @@ The directory to dump the data into. You will get 1 TXT file per table and
 
 Indicates if you wish to drop the database from the server post flat file
 generation. If not you will have to manually drop the database.
+
+=item B<--help>
+
+Print help messages
+
+=item B<--man>
+
+Print the man page for this script
 
 =back
