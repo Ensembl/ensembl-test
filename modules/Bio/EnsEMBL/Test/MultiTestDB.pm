@@ -73,6 +73,7 @@ use constant {
   FROZEN_CONF_SUFFIX => 'MultiTestDB.frozen.conf',
 
   CONF_FILE => 'MultiTestDB.conf',
+  DEFAULT_CONF_FILE => 'MultiTestDB.conf.default',
   DUMP_DIR  => 'test-genome-DBs'
 };
 
@@ -80,15 +81,27 @@ sub get_db_conf {
   my ($class, $current_directory) = @_;
   # Create database from local config file
   my $conf_file = catfile( $current_directory, CONF_FILE );
-
-  if ( !-e $conf_file ) {
-    throw("Required conf file '$conf_file' does not exist");
-  }
-
   my $db_conf = $class->_eval_file($conf_file);
   die "Error while loading config file" if ! defined $db_conf;
   
-  return $db_conf;
+  #Get the default if defined
+  my $default_conf_file = catfile( $current_directory, DEFAULT_CONF_FILE );
+  my $default_db_conf;
+  if(-f $default_conf_file) {
+    $default_db_conf = $class->_eval_file($default_conf_file);
+  }
+  else {
+    my $tmpl = 'Cannot find the default config file at "%s"; if things do not work then this might be why';
+    $class->note(sprintf($tmpl, $default_conf_file));
+    $default_db_conf = {};
+  }
+  
+  my %merged = (
+    %{$default_db_conf},
+    %{$db_conf},
+  );
+  
+  return \%merged;
 }
 
 sub base_dump_dir {
@@ -175,6 +188,9 @@ sub get_frozen_config_file_path {
 
 sub _eval_file {
   my ($self, $file) = @_;
+  if ( !-e $file ) {
+    throw("Required configuration file '$file' does not exist");
+  }
   my $contents = slurp($file);
   my $v = eval $contents;
   die "Could not read in configuration file '$file': $EVAL_ERROR" if $EVAL_ERROR;
