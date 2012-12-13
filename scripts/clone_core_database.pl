@@ -370,11 +370,8 @@ sub post_process_feature {
   return if $filter;
   
   #Core objects
-  if($f->isa('Bio::EnsEMBL::Gene')) {
-    $self->_load_gene($f);
-  }
-  elsif($f->isa('Bio::EnsEMBL::Transcript')) {
-    $self->_load_transcript($f);
+  if($f->can('load')) {
+    $f->load();
   }
   elsif($f->isa('Bio::EnsEMBL::RepeatFeature')) {
     $self->_load_repeat($f);
@@ -393,30 +390,6 @@ sub filter_on_exception {
     return 1;
   }
   return 0;
-}
-
-sub _load_gene {
-  my ($self, $f) = @_;
-  foreach my $t (@{$f->get_all_Transcripts}){
-    $self->_load_transcript($t);
-  }
-  $f->$_() for qw/analysis get_all_DBEntries get_all_Attributes stable_id canonical_transcript/;
-  return;
-}
-
-sub _load_transcript {
-  my ($self, $f) = @_;
-  my $tr = $f->translation();
-  if ($tr) {
-    $f->get_all_alternative_translations();
-    $f->translate;
-    $tr->$_() for qw/get_all_Attributes get_all_DBEntries get_all_ProteinFeatures get_all_SeqEdits/;
-  }
-  foreach my $e (@{$f->get_all_Exons}){
-    $e->$_() for qw/analysis stable_id get_all_supporting_features/;
-  }
-  $f->$_() for qw/analysis stable_id get_all_supporting_features get_all_Attributes get_all_DBEntries get_all_alternative_translations get_all_SeqEdits/;
-  return;
 }
 
 sub _load_repeat {
