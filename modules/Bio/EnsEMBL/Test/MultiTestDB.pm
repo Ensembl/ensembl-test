@@ -74,7 +74,8 @@ use constant {
 
   CONF_FILE => 'MultiTestDB.conf',
   DEFAULT_CONF_FILE => 'MultiTestDB.conf.default',
-  DUMP_DIR  => 'test-genome-DBs'
+  DUMP_DIR  => 'test-genome-DBs',
+  ALTERNATIVE_DUMP_DIR => 'test-Genome-DBs',
 };
 
 sub get_db_conf {
@@ -106,7 +107,14 @@ sub get_db_conf {
 
 sub base_dump_dir {
   my ($class, $current_directory) = @_;
-  return catdir( $current_directory, DUMP_DIR);
+  my $dir = catdir( $current_directory, DUMP_DIR);
+  if(! -d $dir) {
+    my $alternative_dir = catdir($current_directory, ALTERNATIVE_DUMP_DIR);
+    if(-d $alternative_dir) {
+      $dir = $alternative_dir;
+    }
+  }
+  return $dir;
 }
 
 sub new {
