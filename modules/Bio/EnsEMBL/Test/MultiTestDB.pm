@@ -245,7 +245,7 @@ sub create_adaptor {
     %dnadb_params = map { ("-dnadb_${_}", $db->{"dnadb_${_}"}) } qw/host user pass port name/;
   }
   if(eval "require $module") {
-    my %args = map { ( "-${_}", $db->{$_} ) } qw/dbname user pass port host driver species group/;
+    my %args = map { ( "-${_}", $db->{$_} ) } qw(dbname user pass port host driver species group);
     my $adaptor = eval{ $module->new(%args) };
     if($EVAL_ERROR) {
       $self->diag("!! Could not instantiate $dbtype DBAdaptor: $EVAL_ERROR");
