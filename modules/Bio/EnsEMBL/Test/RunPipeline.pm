@@ -191,21 +191,23 @@ sub store_config {
     print $fh ");\n";
     ## only for web DBs
     
-    my $web_adaptor = Bio::EnsEMBL::Registry->get_DBAdaptor('multi','web');
-    
-    print $fh "Bio::EnsEMBL::DBSQL::DBAdaptor->new(\n";
-    print $fh "-HOST => '" . $web_adaptor->dbc->host . "',\n";
-    print $fh "-PORT => '" . $web_adaptor->dbc->port . "',\n";
-    print $fh "-USER => '" . $web_adaptor->dbc->username . "',\n";
-    print $fh "-DBNAME => '" . $web_adaptor->dbc->dbname . "',\n";
-    print $fh "-PASS => '" . $web_adaptor->dbc->password() ."',\n";
-    print $fh "-SPECIES => 'multi',\n";
-    print $fh "-GROUP => 'web',\n";
-    print $fh ");\n";
-    
-   
-    print $fh "}\n";
-    print $fh "1;\n";
+    if ( Bio::EnsEMBL::Registry->get_DBAdaptor('multi', 'web', 1)  ) {
+        my $web_adaptor = Bio::EnsEMBL::Registry->get_DBAdaptor('multi','web');
+        
+        print $fh "Bio::EnsEMBL::DBSQL::DBAdaptor->new(\n";
+        print $fh "-HOST => '" . $web_adaptor->dbc->host . "',\n";
+        print $fh "-PORT => '" . $web_adaptor->dbc->port . "',\n";
+        print $fh "-USER => '" . $web_adaptor->dbc->username . "',\n";
+        print $fh "-DBNAME => '" . $web_adaptor->dbc->dbname . "',\n";
+        print $fh "-PASS => '" . $web_adaptor->dbc->password() ."',\n";
+        print $fh "-SPECIES => 'multi',\n";
+        print $fh "-GROUP => 'web',\n";
+        print $fh ");\n";
+        
+       
+        print $fh "}\n";
+        print $fh "1;\n";
+    }
     return;
   });
   return;
