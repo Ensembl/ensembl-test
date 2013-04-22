@@ -33,6 +33,8 @@ use POSIX qw(strftime);
 use Bio::EnsEMBL::Utils::IO qw/slurp work_with_file/;
 use Bio::EnsEMBL::Utils::Exception qw( warning throw );
 
+use Bio::EnsEMBL::Registry;
+
 use base 'Test::Builder::Module';
 
 $OUTPUT_AUTOFLUSH = 1;
@@ -47,8 +49,12 @@ sub init_pipeline {
   $ENV{PATH} = "$ENV{PATH}:$path";
   my $run = "init_pipeline.pl $pipeline -registry " . $self->get_frozen_config_file_path() . " -species $species -pipeline_db -host=" . $conf->{pipeline_host}  . " -pipeline_name=" . $conf->{pipeline_dbname} . " -pass=" . $conf->{pipeline_pass} . " " . $conf->{options};
 print $run . " initiating pipeline\n" ;
-  system($run);
-  return;
+  my $status = system($run);
+  if ($? != 0 ) {
+      $status = $? >> 8;
+      return $status;
+  }
+  return $status;
 }
 
 sub run_beekeeper {
@@ -59,8 +65,11 @@ sub run_beekeeper {
   $ENV{PATH} = "$ENV{PATH}:$path";
   my $url = "mysql://" . $conf->{pipeline_user} . ":" . $conf->{pipeline_pass} . "\@" . $conf->{pipeline_host} . ":" . $conf->{pipeline_port} . "/" . $ENV{USER} . "_" . $conf->{pipeline_dbname}; 
   my $run = "beekeeper.pl -url $url -reg_conf " . $self->get_frozen_config_file_path() . " -loop -sleep 0.1";
-  system($run);
-  return;
+  my $status = system($run);
+  if ($status != 0 ) {
+      $status = $? >> 8;
+  }
+  return $status;
 }
 
 use constant {
@@ -106,9 +115,10 @@ sub new {
   $self->store_config($db);
 
 
-  $self->init_pipeline($pipeline, $db);
-  $self->run_beekeeper($pipeline, $db);
-
+  my $init = $self->init_pipeline($pipeline, $db);
+  if ($init != 0) { throw "init_pipeline failed with error code: ".$init;}
+  my $bees = $self->run_beekeeper($pipeline, $db);
+  if ($bees != 0) { throw "beekeeper failed with error code: ".$bees;}
   $self->cleanup();
 
   return $self;
@@ -179,6 +189,21 @@ sub store_config {
     print $fh "-SPECIES => 'multi',\n";
     print $fh "-GROUP => 'production',\n";
     print $fh ");\n";
+    ## only for web DBs
+    
+    my $web_adaptor = Bio::EnsEMBL::Registry->get_DBAdaptor('multi','web');
+    
+    print $fh "Bio::EnsEMBL::DBSQL::DBAdaptor->new(\n";
+    print $fh "-HOST => '" . $web_adaptor->dbc->host . "',\n";
+    print $fh "-PORT => '" . $web_adaptor->dbc->port . "',\n";
+    print $fh "-USER => '" . $web_adaptor->dbc->username . "',\n";
+    print $fh "-DBNAME => '" . $web_adaptor->dbc->dbname . "',\n";
+    print $fh "-PASS => '" . $web_adaptor->dbc->password() ."',\n";
+    print $fh "-SPECIES => 'multi',\n";
+    print $fh "-GROUP => 'web',\n";
+    print $fh ");\n";
+    
+   
     print $fh "}\n";
     print $fh "1;\n";
     return;
