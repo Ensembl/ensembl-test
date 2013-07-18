@@ -17,7 +17,7 @@ use POSIX;
 use Scalar::Util qw/looks_like_number/;
 
 my %global_tables = (
-  core => [qw/attrib_type meta coord_system external_db/],
+  core => [qw/attrib_type meta coord_system external_db misc_attrib unmapped_reason/],
 );
 
 run();
@@ -236,7 +236,9 @@ sub copy_regions {
   
   #Grab the copied IDs from the target DB & use this to drive the copy of assembly exceptions
   my $asm_cmp_ids = join(q{,}, @seq_region_exception_ids);
-  $self->copy_data($from, $to, 'assembly_exception', "SELECT * FROM assembly_exception WHERE seq_region_id in ($asm_cmp_ids)");
+  if (scalar(@seq_region_expection_ids) > 0) {
+    $self->copy_data($from, $to, 'assembly_exception', "SELECT * FROM assembly_exception WHERE seq_region_id in ($asm_cmp_ids)");
+  }
   
   #Now transfer all seq_regions from seq_region into the new DB
   my @seq_regions_to_copy = (@seq_region_exception_ids, (map { $slice_adaptor->get_seq_region_id($_) } @toplevel_slices), keys %seq_region_id_list);
