@@ -236,7 +236,7 @@ sub copy_regions {
   
   #Grab the copied IDs from the target DB & use this to drive the copy of assembly exceptions
   my $asm_cmp_ids = join(q{,}, @seq_region_exception_ids);
-  if (scalar(@seq_region_expection_ids) > 0) {
+  if (scalar(@seq_region_exception_ids) > 0) {
     $self->copy_data($from, $to, 'assembly_exception', "SELECT * FROM assembly_exception WHERE seq_region_id in ($asm_cmp_ids)");
   }
   
