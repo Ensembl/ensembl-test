@@ -17,6 +17,7 @@ sub run {
   $self->report_mysql_cmdline();
   $self->report_patch_cmdline();
   $self->report_dumper_cmdline();
+  $self->report_mysqladmin_cmdline();
   return;
 }
 
@@ -50,23 +51,35 @@ sub load {
 sub report_mysql_cmdline {
   my ($self) = @_;
   my $dbc = $self->{mdb}->get_DBAdaptor($self->{opts}->{type})->dbc();
-  printf "MySQL command line: mysql --host=%s --port=%d --user=%s --password=%s %s\n", 
-    $dbc->host(), $dbc->port(), $dbc->username(), $dbc->password(), $dbc->dbname();
+  my $password = ($dbc->password()) ? '--password='.$dbc->password() : q{};
+  printf "MySQL command line: mysql --host=%s --port=%d --user=%s %s %s\n", 
+    $dbc->host(), $dbc->port(), $dbc->username(), $password, $dbc->dbname();
 }
 
 sub report_patch_cmdline {
   my ($self) = @_;
   my $dbc = $self->{mdb}->get_DBAdaptor($self->{opts}->{type})->dbc();
-  printf "Schema Patcher command line: schema_patcher.pl --host %s --port %d --user %s --pass %s --database %s --verbose --fixlast --dryrun\n", 
-    $dbc->host(), $dbc->port(), $dbc->username(), $dbc->password(), $dbc->dbname();
+  my $password = ($dbc->password()) ? '--pass '.$dbc->password() : q{};
+  printf "Schema Patcher command line: schema_patcher.pl --host %s --port %d --user %s %s --database %s --verbose --fixlast --dryrun\n", 
+    $dbc->host(), $dbc->port(), $dbc->username(), $password, $dbc->dbname();
 }
 
 sub report_dumper_cmdline {
   my ($self) = @_;
   my $dbc = $self->{mdb}->get_DBAdaptor($self->{opts}->{type})->dbc();
-  printf "Database dumper command line: dump_mysql.pl --host %s --port %d --user %s --pass %s --database %s --verbose --testcompatible --directory /tmp\n", 
-    $dbc->host(), $dbc->port(), $dbc->username(), $dbc->password(), $dbc->dbname();
+  my $password = ($dbc->password()) ? '--pass '.$dbc->password() : q{};
+  printf "Database dumper command line: dump_mysql.pl --host %s --port %d --user %s %s --database %s --verbose --testcompatible --directory /tmp\n", 
+    $dbc->host(), $dbc->port(), $dbc->username(), $password, $dbc->dbname();
 }
+
+sub report_mysqladmin_cmdline {
+  my ($self) = @_;
+  my $dbc = $self->{mdb}->get_DBAdaptor($self->{opts}->{type})->dbc();
+  my $password = ($dbc->password()) ? '--password='.$dbc->password() : q{};
+  printf "mysqladmin removal command line: mysqladmin --host=%s --port=%d --user=%s %s drop %s\n", 
+    $dbc->host(), $dbc->port(), $dbc->username(), $password, $dbc->dbname();
+}
+
 
 run();
 

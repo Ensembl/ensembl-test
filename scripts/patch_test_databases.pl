@@ -114,9 +114,9 @@ sub patch_db {
     host => $dbc->host(),
     port => $dbc->port(),
     user => $dbc->username(),
-    pass => $dbc->password(),
     database => $dbc->dbname(),
   );
+  $args_hash{pass} = $dbc->password() if $dbc->password();
   my @args = map { "-${_} ".$args_hash{$_} } keys %args_hash;
   push @args, (map { "-${_}"} qw/verbose fixlast nointeractive quiet/);
   

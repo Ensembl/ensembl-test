@@ -210,7 +210,8 @@ sub _data_differences {
   
   #Assume there is a difference if none or 1 hash was provided
   return 1 unless $old_schema_details && $new_schema_details;
-  
+  return 1 if ! exists $old_schema_details->{$table};
+  return 1 if ! exists $new_schema_details->{$table};
   return ( $old_schema_details->{$table}->{checksum} ne $new_schema_details->{$table}->{checksum}) ? 1 : 0;
 }
 
