@@ -153,7 +153,7 @@ sub count_rows
   Arg [4]    : string $constraint
   Arg [5]    : Array $params
   Example    : is_rows(20, $human_dba, "gene");
-  Example    : is_rows(0, $human_dba, "gene", 'where analysis_id =?', 1025);
+  Example    : is_rows(0, $human_dba, "gene", 'where analysis_id =?', [1025]);
   Description: Asserts the count returned is the same as the expected value
   Returntype : None
   Exceptions : None
