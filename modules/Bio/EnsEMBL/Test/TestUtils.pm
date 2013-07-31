@@ -118,7 +118,7 @@ sub debug {
   Arg [3]    : string $constraint
   Arg [4]    : Array $params
   Example    : count_rows($human_dba, "gene");
-  Example    : count_rows($human_dba, "gene", 'where analysis_id=?', 1028);
+  Example    : count_rows($human_dba, "gene", 'where analysis_id=?', [1028]);
   Description: Returns the number of rows in the table $tablename
   Returntype : int
   Exceptions : none
