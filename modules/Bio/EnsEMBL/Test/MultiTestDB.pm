@@ -478,6 +478,8 @@ sub hide {
     $adaptor->dbc->do("DELETE FROM $table");
     # Update the temporary table configuration
     $self->{'conf'}->{$dbtype}->{'hidden'}->{$table} = $hidden_name;
+
+    $self->note("${table} has been hidden in ${dbtype}");
   }
   return;
 }
@@ -534,6 +536,8 @@ sub restore {
     $adaptor->dbc->do("DROP TABLE $hidden_name");
     # Delete value from hidden table configuration
     delete $self->{'conf'}->{$dbtype}->{'hidden'}->{$table};
+
+    $self->note("${table} has been restored in ${dbtype}");    
   }
   return;
 }
@@ -574,6 +578,7 @@ sub save {
       $hidden_name = "_hidden_$table";
       # Copy the data from the hidden table into the new table
       $adaptor->dbc->do("insert into $table select * from $hidden_name");
+      $self->note("${table} contents has been saved in ${dbtype}");
     } 
     else {
       $self->diag("!! Hidden table '$hidden_name' does not exist so saving is not possible");
@@ -614,6 +619,7 @@ sub save_permanent {
   foreach my $table (@tables) {
     my $hidden_name = "_bak_$table" . "_" . $self->{'conf'}->{$dbtype}->{'_counter'};
     $adaptor->dbc->do("CREATE TABLE $hidden_name SELECT * FROM $table");
+    $self->note("${table} has been permanently saved in ${dbtype}");
   }
   return;
 }
