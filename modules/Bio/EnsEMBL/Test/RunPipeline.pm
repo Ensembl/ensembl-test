@@ -8,30 +8,56 @@ Bio::EnsEMBL::Test::RunPipeline
 
 =head1 SYNOPSIS
 
-  my $test = Bio::EnsEMBL::Test::MultiTestDB->new(); #uses homo_sapiens by default
-  my $dba = $test->get_DBAdaptor('pipeline');
-  my $pipeline = Bio::EnsEMBL::Test::RunPipeline($dba, $module);
+use Bio::EnsEMBL::Test::MultiTestDB;
+use Bio::EnsEMBL::Test::RunPipeline;
+
+my $hive = Bio::EnsEMBL::Test::MultiTestDB->new('hive');
+my $pipeline = Bio::EnsEMBL::Test::RunPipeline->new(
+  $hive->get_DBAdaptor('hive'), 'Bio::EnsEMBL::PipeConfig::My_conf', '-options');
+
+$pipeline->run();
 
 =head1 DESCRIPTION
 
-This module automatically runs the specified pipeline on a test database
+This module automatically runs the specified pipeline on a test database. The module 
+is responsible for
+
+=over 8
+
+=item Setting up ENSEMBL_CVS_ROOT_DIR
+
+=item Setting up PATH to point to ensembl-hive/scripts
+
+=item Writing the contents of Bio::EnsEMBL::Registry to a tmp file
+
+=item Initalising the pipeline (can cause entire pipeline bail out)
+
+=item Running beekeeper locally (can cause entire pipeline bail out)
+
+=back
+
+You are expected to provide
+
+=over 8
+
+=item A DBAdaptor instance pointing to a possible hive DB
+
+=item Any options required for init_pipeline.pl to run (including target tmp dirs)
+
+=item The module to run
+
+=item Any fake binaries already on the PATH before running the pipeline
+
+=back
 
 =cut
 
 use strict;
 use warnings;
 
-use DBI;
-use Data::Dumper;
 use English qw(-no_match_vars);
-use File::Copy;
-use File::Spec::Functions;
-use IO::File;
-use IO::Dir;
-use POSIX qw(strftime);
-
-use Bio::EnsEMBL::Utils::IO qw/slurp work_with_file/;
-use Bio::EnsEMBL::Utils::Exception qw( warning throw );
+use File::Temp;
+use File::Spec;
 
 use Bio::EnsEMBL::Registry;
 
@@ -39,50 +65,106 @@ use base 'Test::Builder::Module';
 
 $OUTPUT_AUTOFLUSH = 1;
 
+=head2 init_pipeline
+
+Runs init_pipeline.pl creating the hive DB
+
+=cut
 
 sub init_pipeline {
   my ($self, $pipeline) = @_;
-  my $path = $ENV{CVS_ROOT} . '/ensembl-hive/scripts';
-  my $dba = $self->pipe_db();
   
-  $ENV{PATH} = "$ENV{PATH}:$path";
-  my $run = sprintf("init_pipeline.pl %s -registry %s -species %s -pipeline_db -host=%s -pipeline_db -port=%s -pipeline_name=%s -pass=%s %s",
-                    $pipeline, $self->reg_file(), $self->species(), $dba->dbc->host(), $dba->dbc->port(), $dba->dbc->dbname(), $dba->dbc->password(), $self->pipe_options 
+  my $dba = $self->pipe_db();
+  my $dbc = $dba->dbc();
+  my $run = sprintf(
+    "init_pipeline.pl %s -registry %s -pipeline_db -host=%s -pipeline_db -port=%s -pipeline_name=%s -pass=%s -pipeline_db -dbname=%s %s",
+    $pipeline, $self->reg_file(), $dbc->host(), $dbc->port(), $dbc->dbname(), $dbc->password(), $dbc->dbname, $self->pipe_options 
   );
-  print $run . " initiating pipeline\n" ;
+  $self->builder()->note("Initiating pipeline");
+  $self->builder()->note($run);
   my $status = system($run);
   if ($? != 0 ) {
-      $status = $? >> 8;
-      return $status;
+    $status = $? >> 8;
+    return $status;
   }
   return $status;
 }
+
+=head2 run_beekeeper_loop
+
+Runs beekeeper in a loop. You can control the sleep time using
+
+  $self->beekeeper_sleep()
+
+=cut
+
+sub run_beekeeper_loop {
+  my ($self) = @_;
+  my $sleep = $self->beekeeper_sleep();
+  return $self->run_beekeeper('-no_analysis_stats -loop -sleep '.$sleep);
+}
+
+=head2 run_beekeeper_final_status
+
+Runs beekeeper to print out the final analysis status
+
+  $self->run_beekeeper_final_status()
+
+=cut
+
+sub run_beekeeper_final_status {
+  my ($self) = @_;
+  return $self->run_beekeeper();
+}
+
+=head2 run_beekeeper_sync
+
+Syncs the hive
+
+=cut
+
+sub run_beekeeper_sync {
+  my ($self) = @_;
+  return $self->run_beekeeper('-sync');
+}
+
+=head2 run_beekeeper
+
+Runs beekeeper with any given cmd line options. Meadow and max workers are controlled via
+
+  $self->meadow()
+  $self->max_workers()
+
+=cut
 
 sub run_beekeeper {
-  my ($self, $pipeline) = @_;
-  my $path = $ENV{CVS_ROOT}. '/ensembl-hive/scripts';
+  my ($self, $cmd_line_options) = @_;
+  $cmd_line_options ||= q{};
   my $dba = $self->pipe_db();
-  $ENV{PATH} = "$ENV{PATH}:$path";
-  my $url = sprintf("mysql://%s:%s@%s:%s/%s_%s",$dba->dbc->username(), $dba->dbc->password(), $dba->dbc->host(), $dba->dbc->port(),$ENV{USER},$dba->dbc->dbname()); 
-  my $run = "beekeeper.pl -url $url -reg_conf " . $self->reg_file() . " -loop -sleep 0.1 > beekeeper.log";
+  my $url = $self->hive_url();
+  my $meadow = $self->meadow();
+  my $max_workers = $self->max_workers();
+  my $run = "beekeeper.pl -url $url -meadow $meadow -total_running_workers_max $max_workers -reg_conf " . 
+    $self->reg_file() . ' '. $cmd_line_options;
+  $self->builder()->note("Starting pipeline");
+  $self->builder()->note($run);
   my $status = system($run);
   if ($status != 0 ) {
-      $status = $CHILD_ERROR >> 8;
+    $status = $CHILD_ERROR >> 8;
   }
   return $status;
 }
 
-use constant {
-  # Homo sapiens is used if no species is specified
-  DEFAULT_SPECIES => 'homo_sapiens',
+=head2 new
 
-  DUMP_DIR  => 'test-genome-DBs',
-};
+Create a new module. See SYNOPSIS for details on how to use
 
+=cut
 
 sub new {
-  my ($class, $dba, $pipeline, $species, $options) = @_;
+  my ($class, $pipeline, $options) = @_;
 
+  $class = ref($class) || $class;
   my $self = bless {}, $class;
   
   # Go and grab the current directory and store it away
@@ -94,79 +176,195 @@ sub new {
   else {
     $curr_dir = File::Spec->rel2abs($curr_dir);
   }
-  $self->curr_dir($curr_dir);
 
-  $species ||= DEFAULT_SPECIES;
-  $self->species($species);
-  
+  $self->curr_dir($curr_dir);
+  $self->pipeline($pipeline);
   $self->pipe_options($options);
 
-  $self->pipe_db($dba);
-  $self->store_config();
+  $self->setup_environment();
 
+  #Intalise the hive database
+  $self->hive_multi_test_db();
 
+  return $self;
+}
+
+=head2 add_fake_binaries
+
+Allows you to add directories held in the ensembl-xxxx/modules/t directory 
+(held in curr_dir()) which hold fake binaries for a pipeline.
+
+=cut
+
+sub add_fake_binaries {
+  my ($self, $fake_binary_dir) = @_;
+  my $binary_dir = File::Spec->catdir($self->curr_dir(), $fake_binary_dir);
+  $ENV{PATH} = join(q{:}, $ENV{PATH}, $binary_dir);
+  $self->builder->note('Fake binary dir added. PATH is now: '.$ENV{PATH});
+  return;
+}
+
+=head2 run
+
+Sets the pipeline going. This includes registry writing, initalisation, syncing, and running. See 
+SYNPOSIS for more information.
+
+=cut
+
+sub run {
+  my ($self) = @_;
+
+  my $pipeline = $self->pipeline();
+
+  #Write the registry out
+  $self->write_registry();
+
+  #Run the init
   my $init = $self->init_pipeline($pipeline);
-  if ($init != 0) { throw "init_pipeline failed with error code: ".$init;}
-  my $bees = $self->run_beekeeper($pipeline);
-  if ($bees != 0) { throw "beekeeper failed with error code: ".$bees;}
+  if ($init != 0) { $self->builder()->BAIL_OUT("init_pipeline.pl failed with error code: ".$init); }
+
+  #Sync and loop the pipeline
+  my $bees_sync = $self->run_beekeeper_sync();
+  if ($bees_sync != 0) { $self->builder()->BAIL_OUT("beekeeper.pl sync failed with error code: ".$bees_sync); }
+  my $bees_loop = $self->run_beekeeper_loop();
+  if ($bees_loop != 0) { $self->builder()->BAIL_OUT("beekeeper.pl loop failed with error code: ".$bees_loop); }
   
   return $self;
 }
 
-sub store_config {
-  my ($self, $dba) = @_;
-  my $file_conf = $self->curr_dir."/hive_registry";
-  $self->reg_file($file_conf);
-  work_with_file($file_conf, 'w', sub {
-    my ($fh) = @_;
-    
-    print $fh "use Bio::EnsEMBL::DBSQL::DBAdaptor;\n";
-    
-    print $fh "{\n";
-    
-    my $adaptors = Bio::EnsEMBL::Registry->get_all_DBAdaptors();
-    foreach my $adaptor (@$adaptors) {
-        my $namespace = ref($adaptor);
-        print $fh "$namespace->new(\n";
-        print $fh "-HOST => '".$adaptor->dbc->host."',\n";
-        print $fh "-PORT => '".$adaptor->dbc->port."',\n";
-        print $fh "-USER => '".$adaptor->dbc->username."',\n";
-        print $fh "-PASS => '".$adaptor->dbc->password."',\n";
-        print $fh "-DBNAME => '" . $adaptor->dbc->dbname . "',\n";
-        print $fh "-SPECIES => '" . $adaptor->species . "',\n";
-        print $fh "-GROUP => '". $adaptor->group."',\n";
-        print $fh ");\n";
-    }
+=head2 setup_environment
 
-    print $fh "}\n";
-    print $fh "1;\n";
-    return;
-  });
+When run this will setup the ENSEMBL_CVS_ROOT_DIR if not already set and
+will add the PATH to ensembl-hive/scripts
+
+=cut
+
+sub setup_environment {
+  my ($self) = @_;
+  my $curr_dir = $self->curr_dir();
+  my $up = File::Spec->updir();
+  
+  my $cvs_root_dir;
+  #Setup the CVS ROOT DIR ENV if not already there
+  if(! exists $ENV{ENSEMBL_CVS_ROOT_DIR}) {
+    #Curr dir will be a t dir so the original will be CVS_ROOT/ensembl-production/modules/t
+    $cvs_root_dir = File::Spec->catdir($self->curr_dir(), $up, $up, $up);
+    $ENV{ENSEMBL_CVS_ROOT_DIR} = $cvs_root_dir;
+  }
+  else {
+    $cvs_root_dir = $ENV{ENSEMBL_CVS_ROOT_DIR};
+  }
+
+  #Set the PATH
+  my $hive_script_dir = File::Spec->catdir($self->curr_dir(), $up, $up, $up, 'ensembl-hive', 'scripts');
+  $ENV{PATH} = join(q{:}, $hive_script_dir, $ENV{PATH});
+  $self->builder->note('Setting up hive. PATH is now: '.$ENV{PATH});
+
+  #Stop registry from moaning
+  Bio::EnsEMBL::Registry->no_version_check(1);
+
   return;
 }
 
+=head2 write_registry
+
+Write the current contents of the Registry out to a Perl file
+
+=cut
+
+sub write_registry {
+  my ($self, $dba) = @_;
+  my $fh = File::Temp->new();
+  $fh->unlink_on_destroy(1);
+  $self->registry_file($fh);
+  my %used_namespaces;
+  
+  print $fh "{\n";
+  
+  my $adaptors = Bio::EnsEMBL::Registry->get_all_DBAdaptors();
+  foreach my $adaptor (@{$adaptors}) {
+    next if $adaptor->group() eq 'hive';
+    my $namespace = ref($adaptor);
+    if(! exists $used_namespaces{$namespace}) {
+      print $fh "use $namespace;\n";
+      $used_namespaces{$namespace} = 1;
+    }
+    my $dbc = $adaptor->dbc();
+    print $fh "$namespace->new(\n";
+    print $fh "-HOST => '".$dbc->host."',\n";
+    print $fh "-PORT => '".$dbc->port."',\n";
+    print $fh "-USER => '".$dbc->username."',\n";
+    print $fh "-PASS => '".$dbc->password."',\n";
+    print $fh "-DBNAME => '" . $dbc->dbname . "',\n";
+    print $fh "-SPECIES => '" . $adaptor->species . "',\n";
+    print $fh "-GROUP => '". $adaptor->group."',\n";
+    print $fh ");\n";
+  }
+
+  print $fh "}\n";
+  print $fh "1;\n";
+
+  $fh->close();
+  return;
+}
+
+=head2 _drop_hive_database
+
+Remove the current hive DB
+
+=cut
+
+sub _drop_hive_database {
+  my ($self) = @_;
+  my $dba = $self->pipe_db();
+  my $dbc = $dba->dbc();
+  $dbc->do('drop database '.$dbc->dbname());
+  return;
+}
+
+=head2 hive_url
+
+Generate a hive compatible URL from the object's hive dbadaptor
+
+=cut
+
+sub hive_url {
+  my ($self) = @_;
+  my $dba = $self->pipe_db();
+  my $dbc = $dba->dbc();
+  my $url = sprintf(
+    "mysql://%s:%s@%s:%s/%s",
+    $dbc->username(), $dbc->password(), $dbc->host(), $dbc->port(), $dbc->dbname()
+  ); 
+  return $url;
+}
+
 sub reg_file {
-    my ($self, $reg) = @_;
-    $self->{registry_file} = $reg if $reg;
-    return $self->{registry_file}; 
+  my ($self) = @_;
+  return $self->registry_file()->filename();
+}
+
+sub registry_file {
+  my ($self, $registry_file) = @_;
+  $self->{registry_file} = $registry_file if $registry_file;
+  return $self->{registry_file}; 
 }
 
 sub pipe_db {
-    my ($self, $db) = @_;
-    $self->{pipe_db} = $db if $db;
-    return $self->{pipe_db};
+  my ($self, $db) = @_;
+  return $self->hive_multi_test_db->get_DBAdaptor('hive');
+}
+
+sub pipeline {
+  my ( $self, $pipeline ) = @_;
+  $self->{pipeline} = $pipeline if $pipeline;
+  return $self->{pipeline};
 }
 
 sub pipe_options {
-    my ( $self, $options ) = @_;
-    $self->{options} = $options if $options;
-    return $self->{options};
-}
-
-sub species {
-  my ( $self, $species ) = @_;
-  $self->{species} = $species if $species;
-  return $self->{species};
+  my ( $self, $options ) = @_;
+  $self->{options} = $options if $options;
+  return $self->{options} || q{};
 }
 
 sub curr_dir {
@@ -175,56 +373,32 @@ sub curr_dir {
   return $self->{'_curr_dir'};
 }
 
-sub cleanup {
+sub meadow {
+  my ($self, $meadow) = @_;
+  $self->{meadow} = $meadow if $meadow;
+  return $self->{meadow} || 'LOCAL';
+}
+
+sub beekeeper_sleep {
+  my ($self, $beekeeper_sleep) = @_;
+  $self->{beekeeper_sleep} = $beekeeper_sleep if $beekeeper_sleep;
+  return $self->{beekeeper_sleep} || 0.1;
+}
+
+sub max_workers {
+  my ($self, $max_workers) = @_;
+  $self->{max_workers} = $max_workers if $max_workers;
+  return $self->{max_workers} || 2;
+}
+
+sub hive_multi_test_db {
   my ($self) = @_;
-  my $dba = $self->pipe_db;
-  
-  my $locator = sprintf("DBI:%s:%s:%s",$dba->dbc->driver(),$dba->dbc->host,$dba->dbc->port);
-  my $db = DBI->connect($locator ,$dba->dbc->username,$dba->dbc->password(),{RaiseError => 1} );
-  $self->diag("Can't connect to database '$locator': ". $DBI::errstr) if !$db;
-  
-  $self->note("Dropping database ".$dba->dbc->dbname);
-  eval($db->do("DROP DATABASE ".$dba->dbc->dbname));
-  $self->diag("Could not drop database: $EVAL_ERROR") if $EVAL_ERROR;
-
-  # Remove all of the handles on db_adaptors
-  %{$self->{db_adaptors}} = (); # Not sure if this does anything
-
-  # Delete the frozen configuration file
-  my $conf_file = $self->reg_file();
-  if ( -e $conf_file && -f $conf_file ) {
-    $self->note("Deleting $conf_file");
-    unlink $conf_file;
+  if(! $self->{hive_multi_test_db}) {
+    $self->{hive_multi_test_db} = Bio::EnsEMBL::Test::MultiTestDB->new('hive', $self->curr_dir());
+    #have to drop the hive DB first. Bit backwards tbh but hive needs to create the DB
+    $self->_drop_hive_database();
   }
-  return;
-}
-
-
-
-
-
-sub DESTROY {
-  my ($self) = @_;
-
-  if ( $ENV{'RUNTESTS_HARNESS'} ) {
-    $self->note('Leaving database intact on server');
-  } else {
-    $self->note('Cleaning up...');
-    $self->cleanup();
-  }
-  return;
-}
-
-sub note {
-  my ($self, @args) = @_;
-  $self->builder()->note(@args);
-  return;
-}
-
-sub diag {
-  my ($self, @args) = @_;
-  $self->builder()->diag(@args);
-  return;
+  return $self->{hive_multi_test_db};
 }
 
 1;
