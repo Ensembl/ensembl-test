@@ -45,14 +45,13 @@ use Devel::Cycle;
 use Error qw(:try);
 use IO::String;
 use PadWalker qw/peek_our peek_my/;
-use Test::Builder;
+use Test::Builder::Module;
+use Bio::EnsEMBL::Utils::IO qw/gz_work_with_file work_with_file/;
 
 use vars qw( @ISA @EXPORT );
 
-
-
-@ISA    = qw(Exporter);
-@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams is_rows warns_like mock_object);
+@ISA = qw(Exporter Test::Builder::Module);
+@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams is_rows warns_like mock_object ok_directory_contents is_file_line_count);
 
 =head2 test_getter_setter
 
@@ -108,7 +107,7 @@ sub test_getter_setter
 =cut
 
 sub debug {
-  Test::Builder->new()->note(@_);
+  Bio::EnsEMBL::Test::TestUtils->builder->note(@_);
 }
 
 =head2 count_rows
@@ -169,7 +168,7 @@ sub is_rows {
   my $name = sprintf(q{Asserting row count is %d from %s with constraint '%s' with params [%s]}, 
     $expected_count, $tablename, $constraint, $joined_params
   );
-  return Test::Builder->new()->is_num($actual_count, $expected_count, $name);
+  return __PACKAGE__->builder->is_num($actual_count, $expected_count, $name);
 }
 
 =head2 capture_std_streams
@@ -232,7 +231,85 @@ sub warns_like (&$;$) {
     $warnings .= $_[0];
   };
   $callback->();
-  return Test::Builder->new()->like($warnings, $regex, $msg);
+  return __PACKAGE__->builder()->like($warnings, $regex, $msg);
+}
+
+=head2 ok_directory_contents
+
+  Arg [1]    : String directory to search for files in
+  Arg [2]    : ArrayRef filenames to look for
+  Arg [3]    : String message to print 
+  Example    : ok_directory_contents('/etc', 'hosts', '/etc/hosts is there');
+  Description: 
+  Returntype : Boolean declares if the test was a success
+  Exceptions : none
+  Caller     : test scripts
+
+=cut
+
+sub ok_directory_contents ($$;$) {
+  my ($dir, $files, $msg) = @_;
+  my $result;
+  my @missing;
+  foreach my $file (@{$files}) {
+    my $full_path = File::Spec->catfile($dir, $file);
+    if(! -e $full_path || ! -s $full_path) {
+      push(@missing, $file);
+    }
+  }
+  my $builder = __PACKAGE__->builder();
+  if(@missing) {
+    $result = $builder->ok(0, $msg);
+    $builder->diag("Directory '$dir' is missing the following files");
+    my $missing_msg = join(q{, }, @missing);
+    $builder->diag(sprintf('[%s]', $missing_msg));
+  }
+  else {
+    $result = $builder->ok(1, $msg);
+  }
+  return $result;
+}
+
+=head2 is_file_line_count
+
+  Arg [1]    : String file to test. Can be a gzipped file or uncompressed
+  Arg [2]    : Integer the number of expected rows
+  Arg [3]    : String optional message to print to screen
+  Example    : is_file_line_count('/etc/hosts', 10, 'We have 10 entries in /etc/hosts');
+  Description: Opens the given file (can be gzipped or not) and counts the number of
+               lines by simple line iteration
+  Returntype : Boolean Declares if the test succeeeded or not
+  Exceptions : none
+  Caller     : test scripts
+
+=cut
+
+sub is_file_line_count ($$;$) {
+  my ($file, $expected_count, $msg) = @_;
+  my $builder = __PACKAGE__->builder();
+  if(! -e $file) {
+    my $r = $builder->ok(0, $msg);
+    $builder->diag("$file does not exist");
+    return $r;
+  }
+
+  my $count = 0;
+  my $sub_counter = sub {
+    my ($fh) = @_;
+    while(my $line = <$fh>) {
+      $count++;
+    }
+    return;
+  };
+
+  if($file =~ /.gz$/) {
+    gz_work_with_file($file, 'r', $sub_counter);
+  }
+  else {
+    work_with_file($file, 'r', $sub_counter); 
+  }
+
+  return $builder->cmp_ok($count, '==', $expected_count, $msg);
 }
 
 =head2 mock_object
@@ -392,7 +469,7 @@ sub __called {
 sub __is_called {
   my ($self, $method, $times, $msg) = @_;
   my $calls = $self->__called($method);
-  return Test::Builder->new()->is_num($calls, $times, $msg);
+  return Bio::EnsEMBL::Test::TestUtils->builder()->is_num($calls, $times, $msg);
 }
 
 sub __resolver {
