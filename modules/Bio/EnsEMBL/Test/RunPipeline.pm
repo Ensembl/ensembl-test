@@ -58,6 +58,7 @@ use warnings;
 use English qw(-no_match_vars);
 use File::Temp;
 use File::Spec;
+use File::Spec::Functions;
 
 use Bio::EnsEMBL::Registry;
 
