@@ -257,7 +257,7 @@ sub setup_environment {
   }
 
   #Set the PATH
-  my $hive_script_dir = File::Spec->catdir($self->curr_dir(), $up, $up, $up, 'ensembl-hive', 'scripts');
+  my $hive_script_dir = File::Spec->catdir($cvs_root_dir, 'ensembl-hive', 'scripts');
   $ENV{PATH} = join(q{:}, $hive_script_dir, $ENV{PATH});
   $self->builder->note('Setting up hive. PATH is now: '.$ENV{PATH});
 
