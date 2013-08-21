@@ -200,7 +200,8 @@ Allows you to add directories held in the ensembl-xxxx/modules/t directory
 sub add_fake_binaries {
   my ($self, $fake_binary_dir) = @_;
   my $binary_dir = File::Spec->catdir($self->curr_dir(), $fake_binary_dir);
-  $ENV{PATH} = join(q{:}, $ENV{PATH}, $binary_dir);
+  $binary_dir = File::Spec->rel2abs($binary_dir);
+  $ENV{PATH} = join(q{:}, $binary_dir, $ENV{PATH});
   $self->builder->note('Fake binary dir added. PATH is now: '.$ENV{PATH});
   return;
 }
