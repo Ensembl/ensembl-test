@@ -246,6 +246,9 @@ sub create_adaptor {
   }
   if(eval "require $module") {
     my %args = map { ( "-${_}", $db->{$_} ) } qw(dbname user pass port host driver species group);
+    if($dbtype eq 'hive') {
+      $args{"-NO_SQL_SCHEMA_VERSION_CHECK"} = 1;
+    }
     my $adaptor = eval{ $module->new(%args) };
     if($EVAL_ERROR) {
       $self->diag("!! Could not instantiate $dbtype DBAdaptor: $EVAL_ERROR");
