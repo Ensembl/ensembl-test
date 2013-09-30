@@ -51,7 +51,21 @@ use Bio::EnsEMBL::Utils::IO qw/gz_work_with_file work_with_file/;
 use vars qw( @ISA @EXPORT );
 
 @ISA = qw(Exporter Test::Builder::Module);
-@EXPORT = qw(debug test_getter_setter count_rows find_circular_refs capture_std_streams is_rows warns_like mock_object ok_directory_contents is_file_line_count);
+@EXPORT = qw(
+  debug 
+  test_getter_setter 
+  count_rows 
+  find_circular_refs 
+  capture_std_streams 
+  is_rows 
+  warns_like 
+  mock_object 
+  ok_directory_contents 
+  is_file_line_count
+  has_apache2_licence
+  all_has_apache2_licence
+  all_source_code
+);
 
 =head2 test_getter_setter
 
@@ -329,6 +343,120 @@ sub is_file_line_count ($$;$) {
 sub mock_object {
   my ($obj) = @_;
   return Bio::EnsEMBL::Test::TestUtils::MockObject->new($obj);
+}
+
+=head2 all_has_apache2_licence
+
+  Arg [n]    : Directories to scan. Defaults to blib, t, modules, lib and sql 
+               should they exist (remember relative locations matter if you give them)
+  Example    : my @files = all_has_apache2_licence();
+               my @files = all_has_apache2_licence('../lib/t');
+  Description: Scans the given directories and returns all found instances of
+               source code. This includes Perl (pl,pm,t), Java(java), C(c,h) and 
+               SQL (sql) suffixed files. It then looks for the Apache licence 2.0 
+               declaration in the top of the file (30 lines leway given).
+
+               Should you not need it to scan a directory then put a no critic 
+               declaration at the top. This will prevent the code from scanning and
+               mis-marking the file. The scanner directive is (American spelling also supported)
+                  no critic (RequireApache2Licence) 
+  Returntype : Boolean indicating if all given directories has source code 
+               with the expected licence
+
+=cut
+
+sub all_has_apache2_licence {
+  my @files = all_source_code(@_);
+  my $ok = 1;
+  foreach my $file (@files) {
+    $ok = 0 if ! has_apache2_licence($file);
+  }
+  return $ok;
+}
+
+=head2 has_apache2_licence
+
+  Arg [1]    : File path to the file to test
+  Example    : has_apache2_licence('/my/file.pm');
+  Description: Asserts if we can find the short version of the Apache v2.0
+               licence within the first 30 lines of the given file. You can
+               skip the test with a C<no critic (RequireApache2Licence)> tag. We
+               also support the American spelling of this.
+  Returntype : None
+  Exceptions : None
+
+=cut
+
+sub has_apache2_licence {
+  my ($file) = @_;
+  my $count = 0;
+  my $max_lines = 30;
+  my ($found_copyright, $found_url, $found_warranties, $skip_test) = (0,0,0,0);
+  open my $fh, '<', $file or die "Cannot open $file: $!";
+  while(my $line = <$fh>) {
+    last if $count >= $max_lines;
+    if($line =~ /no critic \(RequireApache2Licen(c|s)e\)/) {
+      $skip_test = 1;
+      last;
+    }
+    $found_copyright = 1 if $line =~ /Apache License, Version 2\.0/;
+    $found_url = 1 if $line =~ /www.apache.org.+LICENSE-2.0/;
+    $found_warranties = 1 if $line =~ /WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND/;
+    $count++;
+  }
+  close $fh;
+  if($skip_test) {
+    return __PACKAGE__->builder->ok(1, "$file has a no critic (RequireApache2Licence) directive");
+  }
+  if($found_copyright && $found_url && $found_warranties) {
+    return __PACKAGE__->builder->ok(1, "$file has a Apache v2.0 licence declaration");
+  }
+  __PACKAGE__->builder->diag("$file is missing Apache v2.0 declaration");
+  __PACKAGE__->builder->diag("$file is missing Apache URL");
+  __PACKAGE__->builder->diag("$file is missing Apache v2.0 warranties");
+  return __PACKAGE__->builder->ok(0, "$file does not have an Apache v2.0 licence declaration in the first $max_lines lines");
+}
+
+=head2 all_source_code
+
+  Arg [n]    : Directories to scan. Defaults to blib, t, modules, lib and sql 
+               should they exist (remember relative locations matter if you give them)
+  Example    : my @files = all_source_code();
+               my @files = all_source_code('lib/t');
+  Description: Scans the given directories and returns all found instances of
+               source code. This includes Perl (pl,pm,t), Java(java), C(c,h) and 
+               SQL (sql) suffixed files.
+  Returntype : Array of all found files
+
+=cut
+
+sub all_source_code {
+  my @starting_dirs = @_ ? @_ : _starting_dirs();
+  my %starting_dir_lookup = map {$_,1} @starting_dirs;
+  my @files;
+  my @dirs = @starting_dirs;
+  my @modules;
+  while ( my $file = shift @dirs ) {
+    if ( -d $file ) {
+      opendir my $dir, $file or next;
+      my @new_files = 
+        grep { $_ ne 'CVS' && $_ ne '.svn' && $_ ne '.git' && $_ !~ /^\./ } 
+        File::Spec->no_upwards(readdir $dir);
+      closedir $dir;
+      push(@dirs, map {File::Spec->catpath($file, $_)} @new_files);
+    }
+    if ( -f $file ) {
+      next unless $file =~ /(?-xism:\.(?:[cht]|p[lm]|java|sql))/;
+      push(@files, $file);
+    }
+  } # while
+  return @files;
+}
+
+sub _starting_dirs {
+  my @dirs;
+  push(@dirs, grep { -e $_ } qw/blib lib sql t modules/);
+  return @dirs;
 }
 
 =head2 find_circular_refs

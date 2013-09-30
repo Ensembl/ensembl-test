@@ -59,6 +59,7 @@ use English qw(-no_match_vars);
 use File::Temp;
 use File::Spec;
 use File::Spec::Functions;
+use Bio::EnsEMBL::Test::MultiTestDB;
 
 use Bio::EnsEMBL::Registry;
 
@@ -225,6 +226,9 @@ sub run {
   my $init = $self->init_pipeline($pipeline);
   if ($init != 0) { $self->builder()->BAIL_OUT("init_pipeline.pl failed with error code: ".$init); }
 
+  #disconnect from the hive DB
+  $self->pipe_db->dbc->disconnect_if_idle();
+
   #Sync and loop the pipeline
   my $bees_sync = $self->run_beekeeper_sync();
   if ($bees_sync != 0) { $self->builder()->BAIL_OUT("beekeeper.pl sync failed with error code: ".$bees_sync); }
@@ -249,8 +253,20 @@ sub setup_environment {
   my $cvs_root_dir;
   #Setup the CVS ROOT DIR ENV if not already there
   if(! exists $ENV{ENSEMBL_CVS_ROOT_DIR}) {
-    #Curr dir will be a t dir so the original will be CVS_ROOT/ensembl-production/modules/t
-    $cvs_root_dir = File::Spec->catdir($self->curr_dir(), $up, $up, $up);
+    #Curr dir will be a t dir. Ascend up until we hit a ensembl-hive dir. Break after 3 ups
+    #since that's the normal location
+    $cvs_root_dir = $self->curr_dir();
+    my $found = 0;
+    foreach my $index (1..3) {
+      $cvs_root_dir = File::Spec->catdir($cvs_root_dir, $up);
+      if( -e File::Spec->catdir($cvs_root_dir, 'ensembl-hive')) {
+        $found = 1;
+        last;
+      }
+    }
+    if(! $found) {
+      $self->builder()->BAIL_OUT("Cannot continue since we could not find a ensembl-hive directory");
+    }
     $ENV{ENSEMBL_CVS_ROOT_DIR} = $cvs_root_dir;
   }
   else {
@@ -281,11 +297,15 @@ sub write_registry {
   $self->registry_file($fh);
   my %used_namespaces;
   
-  print $fh "{\n";
-  
   my $adaptors = Bio::EnsEMBL::Registry->get_all_DBAdaptors();
-  foreach my $adaptor (@{$adaptors}) {
-    next if $adaptor->group() eq 'hive';
+  my @final_adaptors = grep { $_->group() ne 'hive' } @{$adaptors};
+  if(! @final_adaptors) {
+    print $fh "1;\n";
+    return;
+  }
+
+  print $fh "{\n";
+  foreach my $adaptor (@final_adaptors) {
     my $namespace = ref($adaptor);
     if(! exists $used_namespaces{$namespace}) {
       print $fh "use $namespace;\n";
