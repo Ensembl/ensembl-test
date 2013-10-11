@@ -1,0 +1,11 @@
+dump_test_schema.pl requires the following modules, which cpanm should
+be capable of installing:
+
+  MooseX::App::Simple
+  DBIx::Class::Schema::Loader
+  SQL::Translator
+
+These have more than a few dependencies!
+
+DBD::mysql is also required but if you're using the EnsEMBL API you
+probably have that already.
