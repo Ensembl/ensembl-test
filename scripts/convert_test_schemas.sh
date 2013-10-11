@@ -1,7 +1,7 @@
 #!/bin/sh
 
 script_dir=$( cd $( dirname $0 ); echo $PWD )
-test_dir=${1:-modules/t}
+test_dir=${1:-$PWD/modules/t}
 
 if [ ! -d "${test_dir}" ]; then
     echo "Cannot find: ${test_dir}"
@@ -31,12 +31,17 @@ convert_schema() {
   echo
 }
 
-for db_type in core empty; do
-  convert_schema 'homo_sapiens' "${db_type}"
-done
-
-convert_schema 'circ' 'core'
-convert_schema 'ontology' 'ontology'
+(
+    cd "${test_dir}/test-genome-DBs"
+    for species in *; do
+        (
+            cd "${species}"
+            for db_type in *; do
+                convert_schema "${species}" "${db_type}"
+            done
+        )
+    done
+)
 
 exit 0
 
