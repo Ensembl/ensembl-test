@@ -36,6 +36,7 @@ for db_type in core empty; do
 done
 
 convert_schema 'circ' 'core'
+convert_schema 'ontology' 'ontology'
 
 exit 0
 
