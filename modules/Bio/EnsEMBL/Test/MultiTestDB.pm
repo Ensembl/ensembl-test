@@ -138,6 +138,7 @@ sub new {
     }
     $self->curr_dir($curr_dir);
   }
+  $self->_rebless;
 
   if($ENV{'RUNTESTS_HARNESS'}) {
     my $target_file = catfile($self->curr_dir() , 'CLEAN.t');
@@ -171,6 +172,23 @@ sub new {
   }
 
   return $self;
+}
+
+#
+# Rebless based on driver
+#
+sub _rebless {
+    my ($self) = @_;
+    my $driver = $self->db_conf->{driver};
+    my $new_class = ref($self) . '::' . $driver;
+    eval "require $new_class";
+    if ($EVAL_ERROR) {
+        $self->diag("Could not rebless to '$new_class': $EVAL_ERROR");
+    } else {
+        bless $self, $new_class;
+        $self->note("Reblessed to '$new_class'");
+    }
+    return $self;
 }
 
 #
@@ -271,7 +289,7 @@ sub db_conf {
 sub dbi_connection {
   my ($self) = @_;
   if(!$self->{dbi_connection}) {
-    my $db = $self->_db_conf_to_dbi($self->db_conf(), {mysql_local_infile => 1});
+    my $db = $self->_db_conf_to_dbi($self->db_conf(), $self->_dbi_options);
     if ( ! defined $db ) {
       $self->diag("!! Can't connect to database: ".$DBI::errstr);
       return;
@@ -284,8 +302,7 @@ sub dbi_connection {
 sub disconnect_dbi_connection {
   my ($self) = @_;
   if($self->{dbi_connection}) {
-    my $db = $self->dbi_connection();
-    $db->disconnect();
+    $self->do_disconnect;
     delete $self->{dbi_connection};
   }
   return;
@@ -309,8 +326,8 @@ sub load_database {
   $config_hash->{group} = $dbtype;
   $self->{conf}->{$dbtype} = $config_hash;
   my $dbname = $preloaded->{$species}->{$dbtype};
-  my $db = $self->dbi_connection();
-  if($dbname && $self->_db_exists($db, $dbname)) {
+  my $driver_handle = $self->dbi_connection();
+  if($dbname && $self->_db_exists($driver_handle, $dbname)) {
     $config_hash->{dbname} = $dbname;
     $config_hash->{preloaded} = 1;
   }
@@ -325,14 +342,8 @@ sub load_database {
 
     $config_hash->{dbname} = $dbname;
     $self->note("Creating database $dbname");
+    my $db = $self->create_and_use_db($driver_handle, $dbname);
 
-    my $create_db = $db->do("CREATE DATABASE $dbname");
-    if(! $create_db) {
-      $self->note("!! Could not create database [$dbname]");
-      return;
-    }
-
-    $db->do('use '.$dbname);
     my $base_dir = $self->base_dump_dir($self->curr_dir());
     my $dir_name = catdir( $base_dir, $species,  $dbtype );
     $self->load_sql($dir_name, $db);
@@ -369,6 +380,13 @@ sub load_sql {
   if(! defined $dir) {
     $self->diag(" !! Could not open dump directory '$dir_name'");
     return;
+  }
+  my $driver_dir_name = catdir($dir_name, $self->db_conf->{driver});
+  my $driver_dir = IO::Dir->new($driver_dir_name);
+  if ($driver_dir) {
+      $self->note("Reading SQL from '$driver_dir_name'");
+      $dir_name = $driver_dir_name;
+      $dir = $driver_dir;
   }
   my @files = grep { $_ =~ /\.sql$/ } $dir->read();
   $dir->close();
@@ -411,8 +429,7 @@ sub load_txt_dumps {
     if(! -f $txt_file || ! -r $txt_file) {
       next;
     }
-    my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s` FIELDS ESCAPED BY '\\\\'}, $txt_file, $tablename);
-    $db->do($load);
+    $self->load_txt_dump($txt_file, $tablename, $db);
   }
   return;
 }
@@ -420,7 +437,7 @@ sub load_txt_dumps {
 sub tables {
   my ($self, $db, $dbname) = @_;
   my @tables;
-  my $sth = $db->table_info(undef, $dbname, q{%}, 'TABLE');
+  my $sth = $db->table_info(undef, $self->_schema_name($dbname), q{%}, 'TABLE');
   while(my $array = $sth->fetchrow_arrayref()) {
     push(@tables, $array->[2]);
   }
@@ -476,7 +493,7 @@ sub hide {
 
     my $hidden_name = "_hidden_$table";
     # Copy contents of table into a temporary table
-    $adaptor->dbc->do("CREATE TABLE $hidden_name SELECT * FROM $table");
+    $adaptor->dbc->do("CREATE TABLE $hidden_name AS SELECT * FROM $table");
     # Delete the contents of the original table
     $adaptor->dbc->do("DELETE FROM $table");
     # Update the temporary table configuration
@@ -621,7 +638,7 @@ sub save_permanent {
 
   foreach my $table (@tables) {
     my $hidden_name = "_bak_$table" . "_" . $self->{'conf'}->{$dbtype}->{'_counter'};
-    $adaptor->dbc->do("CREATE TABLE $hidden_name SELECT * FROM $table");
+    $adaptor->dbc->do("CREATE TABLE $hidden_name AS SELECT * FROM $table");
     $self->note("The table ${table} has been permanently saved in ${dbtype}");
   }
   return;
@@ -670,7 +687,9 @@ sub create_db_name {
       ( exists $ENV{'LOGNAME'} ? $ENV{'LOGNAME'} : $ENV{'USER'} ),
       $species, $dbtype, $date, $time
   );
-
+  if (my $path = $self->_db_path($self->dbi_connection)) {
+      $db_name = catfile($path, $db_name);
+  }
   return $db_name;
 }
 
@@ -687,9 +706,7 @@ sub cleanup {
     my $db = $self->_db_conf_to_dbi($db_conf);
     my $dbname  = $db_conf->{'dbname'};
     $self->note("Dropping database $dbname");
-    eval {$db->do("DROP DATABASE $dbname");};
-    $self->diag("Could not drop datbaase $dbname: $EVAL_ERROR") if $EVAL_ERROR;
-    $db->disconnect();
+    $self->_drop_database($db, $dbname);
   }
 
   my $conf_file = $self->get_frozen_config_file_path();
@@ -698,18 +715,6 @@ sub cleanup {
     $self->note("Deleting $conf_file");
     unlink $conf_file;
   }
-  return;
-}
-
-sub _db_conf_to_dbi {
-  my ($self, $db_conf, $options) = @_;
-  my %params = (host => $db_conf->{host}, port => $db_conf->{port});
-  %params = (%params, %{$options}) if $options;
-  my $param_str = join(q{;}, map { $_.'='.$params{$_} } keys %params);
-  my $locator = sprintf('DBI:%s:%s', $db_conf->{driver}, $param_str);
-  my $db = DBI->connect( $locator, $db_conf->{user}, $db_conf->{pass}, { RaiseError => 1 } );
-  return $db if $db;
-  $self->diag("Can't connect to database '$locator': ". $DBI::errstr);
   return;
 }
 
