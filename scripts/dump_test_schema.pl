@@ -68,7 +68,15 @@ option 'check_driver' => (
     isa           => 'Str',
     default       => 'mysql',
     cmd_aliases   => [qw/check-driver checkdriver/],
-    documentation => q[Source DBD driver check],
+    documentation => q[Expected source DBD driver type],
+    );
+
+option 'dump_driver' => (
+    is            => 'ro',
+    isa           => 'Str',
+    default       => 'SQLite',
+    cmd_aliases   => [qw/dump-driver dumpdriver/],
+    documentation => q[Destination DBD driver type],
     );
 
 has 'dbc' => (
@@ -112,7 +120,7 @@ sub make_schema {
 sub create_ddl {
     my ($self) = @_;
     my $schema = $self->connected_schema;
-    $schema->create_ddl_dir(['SQLite'],
+    $schema->create_ddl_dir([$self->dump_driver],
                             '0.1',
                             $self->ddl_dir,
                             undef,  # pre-version
