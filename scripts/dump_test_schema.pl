@@ -20,6 +20,9 @@ use 5.010;
 
 use MooseX::App::Simple qw(Color);
 
+use File::Slurp;
+use File::Spec;
+
 use Bio::EnsEMBL::Test::MultiTestDB;
 use DBIx::Class::Schema::Loader qw(make_schema_at);
 
@@ -77,6 +80,13 @@ option 'ddl_dir' => (
     documentation => q[Directory for ddl output],
     );
 
+option 'version' => (
+    is            => 'ro',
+    isa           => 'Str',
+    default       => '0.1',
+    documentation => q[Generated schema version],
+    );
+
 option 'check_driver' => (
     is            => 'ro',
     isa           => 'Str',
@@ -98,6 +108,25 @@ has 'dbc' => (
     isa  => 'Bio::EnsEMBL::DBSQL::DBConnection',
     );
 
+has ddl_file => (
+    is            => 'ro',
+    isa           => 'Str',
+    builder       => '_build_ddl_file',
+    lazy          => 1,
+    );
+
+sub _build_ddl_file {
+    my ($self)  = @_;
+
+    my $class_file = $self->schema_class;
+    $class_file =~ s/::/-/g;
+
+    my $filename = join('-', $class_file, $self->version, $self->dump_driver);
+    $filename .= '.sql';
+
+    return File::Spec->catfile($self->ddl_dir, $filename);
+}
+
 sub run {
     my ($self)  = @_;
 
@@ -110,6 +139,7 @@ sub run {
 
     $self->make_schema;
     $self->create_ddl;
+    $self->patch_ddl;
 
     return;
 }
@@ -140,6 +170,15 @@ sub create_ddl {
                             undef,  # pre-version
                             { add_drop_table => 0 },
         );
+}
+
+sub patch_ddl {
+    my ($self) = @_;
+    my $ddl_file = $self->ddl_file;
+    my $file = read_file($ddl_file);
+    $file =~ s/INTEGER PRIMARY KEY/INTEGER PRIMARY KEY AUTOINCREMENT/g;
+    write_file($ddl_file, $file);
+    return;
 }
 
 sub connected_schema {
