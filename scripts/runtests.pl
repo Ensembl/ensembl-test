@@ -78,11 +78,18 @@ my $harness = TAP::Harness->new({verbosity => $opts->{verbose}});
 $ENV{'RUNTESTS_HARNESS'} = 1;
 
 # Run all specified tests
+my $results;
 eval {
-  $harness->runtests(@no_clean_tests);
+  $results = $harness->runtests(@no_clean_tests);
 };
 
 clean();
+
+if($results->has_errors()) {
+  my $count = $results->failed()
+  $count = 255 if $count > 255;
+  exit $count;
+}
 
 sub usage {
     print <<EOT;
