@@ -86,7 +86,7 @@ eval {
 clean();
 
 if($results->has_errors()) {
-  my $count = $results->failed()
+  my $count = $results->failed();
   $count = 255 if $count > 255;
   exit $count;
 }
