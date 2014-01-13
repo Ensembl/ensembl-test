@@ -56,7 +56,7 @@ if($@) {
 }
 
 #Tests without cleans
-my @no_clean_tests = grep { $_ !~ /CLEAN\.t$/ } @tests;
+my @no_clean_tests = sort grep { $_ !~ /CLEAN\.t$/ } @tests;
 
 # List test files on '-l' command line option
 if ($opts->{list}) {
