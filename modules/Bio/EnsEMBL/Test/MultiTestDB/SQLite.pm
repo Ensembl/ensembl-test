@@ -50,7 +50,8 @@ sub load_txt_dump {
     $db->disconnect;
 
     my $command = sprintf('.import %s %s', $txt_file, $tablename);
-    system('sqlite3', '-separator', "\t", $db_file, $command);
+    system('sqlite3', '-separator', "\t", $db_file, $command) == 0
+        or die "sqlite3 import of '$txt_file' failed: $?";
 
     $db = $self->_do_connect($db_file);
 
