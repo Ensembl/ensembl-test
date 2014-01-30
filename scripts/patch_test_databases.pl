@@ -24,8 +24,8 @@ use File::Basename;
 use Getopt::Long;
 use Pod::Usage;
 
-my %skip_species_list = map { $_ => 1} qw/multi/; 
-my %skip_groups_list = map { $_ => 1} qw/ontology/; 
+my %skip_species_list;
+my %skip_groups_list = map { $_ => 1} qw/ontology web/; 
 
 sub run {
   my ($class) = @_;
