@@ -25,7 +25,7 @@ use Getopt::Long;
 use Pod::Usage;
 
 my %skip_species_list;
-my %skip_groups_list = map { $_ => 1} qw/ontology web/; 
+my %skip_groups_list = map { $_ => 1} qw/web/; 
 
 sub run {
   my ($class) = @_;
