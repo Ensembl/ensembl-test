@@ -17,6 +17,7 @@
 use strict;
 use warnings;
 
+use File::Basename;
 use File::Find;
 use File::Spec;
 use Getopt::Long;
@@ -25,9 +26,10 @@ use TAP::Harness;
 my $opts = {
   clean => 0,
   help => 0,
+  skip => [],
   verbose => 0
 };
-my @args = ('clean|clear|c', 'help|h', 'verbose|v', 'list|tests|list-tests|l');
+my @args = ('clean|clear|c', 'help|h', 'verbose|v', 'list|tests|list-tests|l', 'skip=s@');
 
 my $parse = GetOptions($opts, @args);
 if(!$parse) {
@@ -57,6 +59,12 @@ if($@) {
 
 #Tests without cleans
 my @no_clean_tests = sort grep { $_ !~ /CLEAN\.t$/ } @tests;
+
+if (@{$opts->{skip}}) {
+  my %skip = map { basename($_) => 1 } split(/,/, join(',', @{$opts->{skip}}));
+  printf STDERR "Skipping tests: %s\n", join(', ', sort keys %skip);
+  @no_clean_tests = grep { not $skip{basename($_)} } @no_clean_tests;
+}
 
 # List test files on '-l' command line option
 if ($opts->{list}) {
@@ -101,6 +109,7 @@ Usage:
 \t-l|--list|--tests|--list-tests\n\t\tlist available tests
 \t-c|--clean|--clear\n\t\trun tests and clean up in each directory
 \t\tvisited (default is not to clean up)
+\t--skip <test_name>[,<test_name>...]\n\t\tskip listed tests
 \t-v|--verbose\n\t\tbe verbose
 \t-h|--help\n\t\tdisplay this help text
 
