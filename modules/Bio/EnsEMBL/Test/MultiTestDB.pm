@@ -283,7 +283,8 @@ sub create_adaptor {
   if(eval "require $module") {
     my %args = map { ( "-${_}", $db->{$_} ) } qw(dbname user pass port host driver species group);
     if($dbtype eq 'hive') {
-      $args{"-NO_SQL_SCHEMA_VERSION_CHECK"} = 1;
+      $args{"-no_sql_schema_version_check"} = 1;
+      $args{'-url'} = 'mysql://' . $args{'-user'} . ':' . $args{'-pass'} . '@' . $args{'-host'} . ':' . $args{'-port'} . '/' . $args{'-dbname'};
     }
     my $adaptor = eval{ $module->new(%args) };
     if($EVAL_ERROR) {

@@ -316,7 +316,7 @@ sub write_registry {
   my %used_namespaces;
   
   my $adaptors = Bio::EnsEMBL::Registry->get_all_DBAdaptors();
-  my @final_adaptors = grep { $_->group() ne 'hive' } @{$adaptors};
+  my @final_adaptors = grep { $_ !~ 'Hive' } @{$adaptors};
   if(! @final_adaptors) {
     print $fh "1;\n";
     return;
