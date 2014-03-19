@@ -58,6 +58,7 @@ use warnings;
 use DBI;
 use Data::Dumper;
 use English qw(-no_match_vars);
+use File::Basename;
 use File::Copy;
 use File::Spec::Functions;
 use IO::File;
@@ -365,7 +366,7 @@ sub load_database {
 
     my $base_dir = $self->base_dump_dir($self->curr_dir());
     my $dir_name = catdir( $base_dir, $species,  $dbtype );
-    $self->load_sql($dir_name, $db);
+    $self->load_sql($dir_name, $db, 'table.sql', 'sql');
     $self->load_txt_dumps($dir_name, $dbname, $db);
     $self->note("Loaded database '$dbname'");
   }
@@ -394,30 +395,18 @@ sub load_databases {
 #
 
 sub load_sql {
-  my ($self, $dir_name, $db) = @_;
-  my $dir = IO::Dir->new($dir_name);
-  if(! defined $dir) {
-    $self->diag(" !! Could not open dump directory '$dir_name'");
-    return;
-  }
-  my $driver_dir_name = catdir($dir_name, $self->db_conf->{driver});
-  my $driver_dir = IO::Dir->new($driver_dir_name);
-  if ($driver_dir) {
-      $self->note("Reading SQL from '$driver_dir_name'");
-      $dir_name = $driver_dir_name;
-      $dir = $driver_dir;
-  }
-  my @files = grep { $_ =~ /\.sql$/ } $dir->read();
-  $dir->close();
+  my ($self, $dir_name, $db, $override_name, $suffix, $override_must_exist) = @_;
+  my @files = $self->driver_dump_files($dir_name, $suffix);
 
-  my ($all_tables_sql) = grep { $_ eq 'table.sql' } @files;
+  my ($all_tables_sql) = grep { basename($_) eq $override_name } @files;
+  return if $override_must_exist and not $all_tables_sql;
 
   my $sql_com = q{};
   if($all_tables_sql) {
     @files = ($all_tables_sql);
   }
   foreach my $sql_file (@files) {
-    my $sql_file = catfile( $dir_name, $sql_file );
+    $self->diag("Reading SQL from '$sql_file'");
     work_with_file($sql_file, 'r', sub {
       my ($fh) = @_;
       while(my $line = <$fh>) {
@@ -440,6 +429,24 @@ sub load_sql {
   return;
 }
 
+sub driver_dump_files {
+  my ($self, $dir_name, $suffix) = @_;
+  my $dir = IO::Dir->new($dir_name);
+  if(! defined $dir) {
+    $self->diag(" !! Could not open dump directory '$dir_name'");
+    return;
+  }
+  my $driver_dir_name = catdir($dir_name, $self->db_conf->{driver});
+  my $driver_dir = IO::Dir->new($driver_dir_name);
+  if ($driver_dir) {
+      $dir = $driver_dir;
+      $dir_name = $driver_dir_name;
+  }
+  my @files = map { catfile($dir_name, $_) } grep { $_ =~ /\.${suffix}$/ } $dir->read();
+  $dir->close();
+  return (@files);
+}
+
 sub load_txt_dumps {
   my ($self, $dir_name, $dbname, $db) = @_;
   my $tables = $self->tables($db, $dbname);
@@ -448,8 +455,22 @@ sub load_txt_dumps {
     if(! -f $txt_file || ! -r $txt_file) {
       next;
     }
-    $self->load_txt_dump($txt_file, $tablename, $db);
+    $self->do_pre_sql($dir_name, $tablename, $db);
+    $db = $self->load_txt_dump($txt_file, $tablename, $db); # load_txt_dump may re-connect $db!
+    $self->do_post_sql($dir_name, $tablename, $db);
   }
+  return;
+}
+
+sub do_pre_sql {
+  my ($self, $dir_name, $tablename, $db) = @_;
+  $self->load_sql($dir_name, $db, "$tablename.pre", 'pre', 1);
+  return;
+}
+
+sub do_post_sql {
+  my ($self, $dir_name, $tablename, $db) = @_;
+  $self->load_sql($dir_name, $db, "$tablename.post", 'post', 1);
   return;
 }
 
