@@ -43,7 +43,7 @@ sub load_txt_dump {
     my ($self, $txt_file, $tablename, $db) = @_;
     my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s` FIELDS ESCAPED BY '\\\\'}, $txt_file, $tablename);
     $db->do($load);
-    return;
+    return $db;
 }
 
 sub create_and_use_db {
