@@ -36,6 +36,7 @@ use strict;
 use warnings;
 
 use English qw(-no_match_vars);
+use File::Basename;
 use File::Path qw(make_path);
 use File::Spec::Functions;      # catfile
 
@@ -44,11 +45,10 @@ use base 'Bio::EnsEMBL::Test::MultiTestDB';
 sub load_txt_dump {
     my ($self, $txt_file, $tablename, $db) = @_;
 
-    my $db_file = $db->{Name};
-    $db_file =~ s/^dbname=//;
-
     $db->disconnect;
 
+    my $db_type = basename(dirname($txt_file)); # yuck!!
+    my $db_file = $self->{conf}->{$db_type}->{dbname}; # yuck, but at least it's there
     my $command = sprintf('.import %s %s', $txt_file, $tablename);
     system('sqlite3', '-separator', "\t", $db_file, $command) == 0
         or die "sqlite3 import of '$txt_file' failed: $?";
@@ -69,7 +69,7 @@ sub load_txt_dump {
         }
     }
 
-    return;
+    return $db;
 }
 
 our %dbi;

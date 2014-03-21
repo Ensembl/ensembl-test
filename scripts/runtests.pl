@@ -95,6 +95,9 @@ clean();
 
 if($results->has_errors()) {
   my $count = $results->failed();
+  $count   += $results->parse_errors();
+  $count   += $results->exit();
+  $count   += $results->wait();
   $count = 255 if $count > 255;
   exit $count;
 }
