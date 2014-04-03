@@ -145,6 +145,9 @@ sub dump_tables {
 
 sub dump_table {
   my ($self, $table) = @_;
+  my $response = $self->dba->dbc->sql_helper()->execute_simple(
+       -SQL => "select count(*) from $table");
+  return if ($response->[0] == 0);
   my $file = File::Spec->catfile($self->directory(), $table.'.txt');
   work_with_file($file, 'w', sub {
     my ($fh) = @_;
