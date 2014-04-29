@@ -94,6 +94,7 @@ sub process {
     print STDOUT "INFO: Finished working with species '$species'\n";
     print STDOUT '='x80; print STDOUT "\n";
   }
+  $self->convert_sqllite($dir);
   return;
 }
 
@@ -155,6 +156,14 @@ sub dump_db {
   my $dumper = Bio::EnsEMBL::Test::DumpDatabase->new($dba, $dir, $old_schema_details, $new_schema_details);
   $dumper->dump();
   return;
+}
+
+sub convert_sqllite {
+  my ($self, $dir) = @_;
+  my $ud = File::Spec->updir();
+  my $schema_converter = File::Spec->catdir($dir, $ud, $ud, $ud, 'ensembl-test', 'scripts', 'convert_test_schemas.sh');
+  eval "require MooseX::App::Simple";
+  system($schema_converter) unless ($@);
 }
 
 sub cleanup_CLEAN {
