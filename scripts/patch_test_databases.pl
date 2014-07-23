@@ -20,6 +20,7 @@ use warnings;
 use Bio::EnsEMBL::Test::DumpDatabase;
 use Bio::EnsEMBL::Test::MultiTestDB;
 use File::Spec;
+use Cwd;
 use File::Basename;
 use Getopt::Long;
 use Pod::Usage;
@@ -161,9 +162,18 @@ sub dump_db {
 sub convert_sqllite {
   my ($self, $dir) = @_;
   my $ud = File::Spec->updir();
-  my $schema_converter = File::Spec->catdir($dir, $ud, $ud, $ud, 'ensembl-test', 'scripts', 'convert_test_schemas.sh');
+  my $schema_converter = File::Spec->catdir(dirname(__FILE__), 'convert_test_schemas.sh');
+  my $cwd = getcwd();
+  my $is_absolute = File::Spec->file_name_is_absolute( $self->{opts}->{curr_dir});
+  my $curr_dir;
+  if ($is_absolute) {
+    $curr_dir = File::Spec->catdir($self->{opts}->{curr_dir});
+  } else {
+    $curr_dir = File::Spec->catdir($cwd, $self->{opts}->{curr_dir} ) ;
+  }
+  if ($curr_dir !~ /ensembl\/modules\/t/) { return; }
   eval "require MooseX::App::Simple";
-  system($schema_converter) unless ($@);
+  system("$schema_converter $curr_dir") unless ($@);
 }
 
 sub cleanup_CLEAN {

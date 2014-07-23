@@ -15,7 +15,7 @@
 # limitations under the License.
 
 script_dir=$( cd $( dirname $0 ); echo $PWD )
-test_dir=${1:-$PWD/modules/t}
+test_dir=$1
 
 if [ ! -d "${test_dir}" ]; then
     echo "Cannot find: ${test_dir}"
