@@ -26,7 +26,7 @@ use Getopt::Long;
 use Pod::Usage;
 
 my %skip_species_list;
-my %skip_groups_list = map { $_ => 1} qw/web/; 
+my %skip_groups_list = map { $_ => 1} qw/web hive/; 
 
 sub run {
   my ($class) = @_;
