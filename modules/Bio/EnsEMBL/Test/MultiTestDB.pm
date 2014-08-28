@@ -406,7 +406,7 @@ sub load_sql {
     @files = ($all_tables_sql);
   }
   foreach my $sql_file (@files) {
-    $self->diag("Reading SQL from '$sql_file'");
+    $self->note("Reading SQL from '$sql_file'");
     work_with_file($sql_file, 'r', sub {
       my ($fh) = @_;
       while(my $line = <$fh>) {
