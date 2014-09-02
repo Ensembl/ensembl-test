@@ -289,7 +289,12 @@ sub create_adaptor {
       # This amounts to searching for the datase with the same prefix as the funcgen one, with the 
       # highest timestamp in suffix, i.e. the first element of the set of candidate name in reverse 
       # alphabetical order.
-      my $mysql_out = `mysql -NB -u $args{'-user'} -p$args{'-pass'} -h $args{'-host'} -P $args{'-port'} -e 'show databases'`;
+      my $mysql_out;
+      if ($args{'-pass'}) {
+        $mysql_out = `mysql -NB -u $args{'-user'} -p$args{'-pass'} -h $args{'-host'} -P $args{'-port'} -e 'show databases'`;
+      } else {
+        $mysql_out = `mysql -NB -u $args{'-user'} -h $args{'-host'} -P $args{'-port'} -e 'show databases'`;
+      }
       my @databases = split(/^/, $mysql_out);
       my $dnadb_pattern = $args{'-dbname'};
       $dnadb_pattern =~ s/_funcgen_.*/_core_/;
