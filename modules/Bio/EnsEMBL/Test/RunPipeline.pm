@@ -97,7 +97,7 @@ sub init_pipeline {
   my $dba = $self->pipe_db();
   my $dbc = $dba->dbc();
   my $run = sprintf(
-    "init_pipeline.pl %s -registry %s -pipeline_db -host=%s -pipeline_db -port=%s -pipeline_name=%s -password=%s -pipeline_db -dbname=%s -user=%s %s",
+    "init_pipeline.pl %s -registry %s -pipeline_db -host=%s -pipeline_db -port=%s -pipeline_name=%s -password '%s' -pipeline_db -dbname=%s -user=%s %s",
     $pipeline, $self->reg_file(), $dbc->host(), $dbc->port(), $dbc->dbname(), $dbc->password(), $dbc->dbname(), $dbc->user(), $self->pipe_options 
   );
   $self->builder()->note("Initiating pipeline");
