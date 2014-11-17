@@ -219,7 +219,7 @@ sub _schema_differences {
   return 1 unless $old_schema_details && $new_schema_details;
   
   my $old_schema_concat = join(qq{\n}, map { $old_schema_details->{$_}->{create} } sort keys %$old_schema_details);
-  my $new_schema_concat = join(qq{\n}, map { $new_schema_details->{$_}->{create} } sort keys %$old_schema_details);
+  my $new_schema_concat = join(qq{\n}, map { $new_schema_details->{$_}->{create} || '' } sort keys %$old_schema_details);
   
   return ( $old_schema_concat ne $new_schema_concat ) ? 1 : 0;
 }
