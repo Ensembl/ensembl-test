@@ -20,6 +20,7 @@ use warnings;
 use Bio::EnsEMBL::Registry;
 use Bio::EnsEMBL::DBSQL::DBConnection;
 use Bio::EnsEMBL::DBSQL::DBAdaptor;
+use Bio::EnsEMBL::Funcgen::DBSQL::DBAdaptor;
 use Bio::EnsEMBL::Test::DumpDatabase;
 use Bio::EnsEMBL::Utils::IO qw/slurp/;
 use Bio::EnsEMBL::Utils::Scalar qw/scope_guard/;
@@ -32,6 +33,7 @@ use Scalar::Util qw/looks_like_number/;
 
 my %global_tables = (
   core => [qw/attrib_type meta coord_system external_db misc_attrib unmapped_reason/],
+  funcgen => [qw/feature_set/],
 );
 
 run();
@@ -130,16 +132,19 @@ sub process {
   my ($self) = @_;
   my $dbc = $self->target_dbc();
   my $config_hash = $self->{json};
+  my $is_dna = 1;
   
   foreach my $species (keys %{$config_hash}) {
     foreach my $group (keys %{$config_hash->{$species}}) {
-      my $from = Bio::EnsEMBL::Registry->get_DBAdaptor($species, $group);
+      $is_dna = 0 if $group eq 'funcgen';
+      my $registry = 'Bio::EnsEMBL::Registry';
+      my $from = $registry->get_DBAdaptor($species, $group);
       my $info = $config_hash->{$species}->{$group};
       my $regions = $info->{regions};
       my $adaptors = $info->{adaptors};
       my $to = $self->copy_database_structure($species, $group, $dbc);
       $self->copy_globals($from, $to);
-      my $slices = $self->copy_regions($from, $to, $regions);
+      my $slices = $self->copy_regions($from, $to, $regions, $is_dna);
       my $filter_exceptions = $info->{filter_exceptions};
       foreach my $adaptor_info (@{$adaptors}) {
         $self->copy_features($from, $to, $slices, $adaptor_info, $filter_exceptions);
@@ -186,7 +191,7 @@ sub copy_globals {
 
 # Starts the copy across of Slices
 sub copy_regions {
-  my ($self, $from, $to, $regions) = @_;
+  my ($self, $from, $to, $regions, $is_dna) = @_;
   my $coord_sql = "select name, coord_system_id from coord_system";
   my $coord_systems = $to->dbc->sql_helper()->execute_into_hash(-SQL => $coord_sql);
 
@@ -231,8 +236,10 @@ sub copy_regions {
   
   #Copy the information about each contig/supercontig's assembly 
   my $seq_region_ids = join(q{,}, keys %seq_region_id_list);
-  my $sr_query = "SELECT a.* FROM seq_region s JOIN assembly a ON (s.seq_region_id = a.cmp_seq_region_id) WHERE seq_region_id IN ($seq_region_ids)";
-  $self->copy_data($from, $to, "assembly", $sr_query);
+  if ($is_dna) {
+    my $sr_query = "SELECT a.* FROM seq_region s JOIN assembly a ON (s.seq_region_id = a.cmp_seq_region_id) WHERE seq_region_id IN ($seq_region_ids)";
+    $self->copy_data($from, $to, "assembly", $sr_query);
+  }
   
   
   # Once we've got the original list of slices we have to know if one is an 
@@ -258,8 +265,8 @@ sub copy_regions {
   my @seq_regions_to_copy = (@seq_region_exception_ids, (map { $slice_adaptor->get_seq_region_id($_) } @toplevel_slices), keys %seq_region_id_list);
   my $seq_regions_to_copy_in = join(q{,}, @seq_regions_to_copy);
   $self->copy_data($from, $to, 'seq_region', "SELECT * FROM seq_region WHERE seq_region_id in ($seq_regions_to_copy_in)");
-  $self->copy_data($from, $to, 'seq_region_attrib', "SELECT * FROM seq_region_attrib WHERE seq_region_id in ($seq_regions_to_copy_in)");
-  $self->copy_data($from, $to, 'dna', "SELECT * FROM dna WHERE seq_region_id in ($seq_regions_to_copy_in)");
+  $self->copy_data($from, $to, 'seq_region_attrib', "SELECT * FROM seq_region_attrib WHERE seq_region_id in ($seq_regions_to_copy_in)") if $is_dna;
+  $self->copy_data($from, $to, 'dna', "SELECT * FROM dna WHERE seq_region_id in ($seq_regions_to_copy_in)") if $is_dna;
   
   return \@toplevel_slices;
 }
@@ -324,11 +331,22 @@ sub copy_database_structure {
   $target_dbc->dbname($target_name);
   $target_dbc->do('use '.$target_name);
   print STDERR "Finished population\n";
-  return Bio::EnsEMBL::DBSQL::DBAdaptor->new(
+  my $dbadaptor;
+  if ($group eq 'funcgen') {
+    $dbadaptor = Bio::EnsEMBL::Funcgen::DBSQL::DBAdaptor->new(
+      -DBCONN => $target_dbc,
+      -GROUP => $group,
+      -SPECIES => $target_name,
+      -DNADB => $dba->dnadb(),
+    );
+  } else {
+    $dbadaptor = Bio::EnsEMBL::DBSQL::DBAdaptor->new(
     -DBCONN => $target_dbc,
     -GROUP => $group,
     -SPECIES => $target_name,
   );
+  }
+  return $dbadaptor;
 }
 
 sub get_ids {
