@@ -58,8 +58,9 @@
       perldoc Bio::EnsEMBL::Test::MultiTestDB
       perldoc Bio::EnsEMBL::Test::TestUtils
 
-    There are also  extra information more specific to  a particular CVS
+    There are also  extra information more specific to a particular git
     repository in e.g.
 
-      ensembl/module/t/README
-      ensembl-compara/module/t/README
+      https://github.com/Ensembl/ensembl/blob/master/modules/t/README
+      https://github.com/Ensembl/ensembl-compara/blob/master/modules/t/README
+
