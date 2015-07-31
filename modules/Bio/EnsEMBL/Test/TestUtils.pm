@@ -316,8 +316,8 @@ sub ok_directory_contents ($$;$) {
 
 =cut
 
-sub is_file_line_count ($$;$) {
-  my ($file, $expected_count, $msg) = @_;
+sub is_file_line_count ($$;$;$) {
+  my ($file, $expected_count, $msg, $pattern) = @_;
   my $builder = __PACKAGE__->builder();
   if(! -e $file) {
     my $r = $builder->ok(0, $msg);
@@ -329,6 +329,7 @@ sub is_file_line_count ($$;$) {
   my $sub_counter = sub {
     my ($fh) = @_;
     while(my $line = <$fh>) {
+      if ($pattern && $line =~ /$pattern/) { next; }
       $count++;
     }
     return;
