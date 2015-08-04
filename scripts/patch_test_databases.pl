@@ -51,6 +51,10 @@ sub args {
     $opts, qw/
       curr_dir|current_directory|directory|dir=s
       schema_patcher=s
+      nofixlast!
+      noquiet!
+      noverbose!
+      interactive!
       help
       man
       /
@@ -134,9 +138,16 @@ sub patch_db {
   );
   $args_hash{pass} = $dbc->password() if $dbc->password();
   my @args = map { "-${_} ".$args_hash{$_} } keys %args_hash;
-  push @args, (map { "-${_}"} qw/verbose fixlast nointeractive quiet/);
   
   my $program = $self->{opts}->{schema_patcher};
+  my $nofixlast = $self->{opts}->{nofixlast};
+  if (!$nofixlast) { push @args, "-fixlast"; }
+  my $noverbose = $self->{opts}->{noverbose};
+  if (!$noverbose) { push @args, "-verbose"; }
+  my $noquiet = $self->{opts}->{noquiet};
+  if (!$noquiet) { push @args, "-quiet"; }
+  my $interactive = $self->{opts}->{interactive};
+  if (!$interactive) { push @args, "-nointeractive" ; }
   my $arguments = join(q{ }, @args);
   my $cmd = "$program $arguments";
   print STDERR "DEBUG: Submitting command '$cmd'\n";
@@ -225,6 +236,26 @@ Current directory. Should be set to the directory which has your configuration f
 
 Specify the location of the schema patcher script to use. If not specified we
 assume a location of
+
+=item B<--nofixlast>
+
+Default schema_patcher option is to use fixlast.
+With nofixlast option enabled, it will run for all known patches
+
+=item B<--noquiet>
+
+Default schema_patcher option is to use quiet, to hide warnings
+With noquiet option enabled, warnings will be displayed
+
+=item B<--noverbose>
+
+Default schema_patcher option is to use verbose, to display extra information
+With noverbose option enabled, the script is less verbose
+
+=item B<--interactive>
+
+Default schema_patcher option is to use nointeractive, for an non-interactive environment
+With interactive option enabled, the script will require user input 
 
   dirname(__FILE__)/../../ensembl/misc-scripts/schema_patcher.pl
 
