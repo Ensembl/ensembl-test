@@ -329,7 +329,7 @@ sub is_file_line_count ($$;$;$) {
   my $sub_counter = sub {
     my ($fh) = @_;
     while(my $line = <$fh>) {
-      if ($pattern && $line =~ /$pattern/) { next; }
+      if ($pattern && $line !~ /$pattern/) { next; }
       $count++;
     }
     return;
