@@ -7,4 +7,5 @@ requires 'Error';
 requires 'PadWalker';
 requires 'Test::Builder::Module';
 requires 'IO::String';
+requires 'IO::Scalar';
 requires 'Test::FTP::Server';
