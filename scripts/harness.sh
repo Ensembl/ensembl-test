@@ -11,9 +11,9 @@ ENSDIR="${ENSDIR:-$PPWD}"
 setenv="$ENSDIR/ensembl/activate"
 
 # Setup the paths and perl5lib
-$setenv -vv $ENSDIR
+source $setenv -vv $ENSDIR
 if [ "$ENSDIR" != "$PPWD" ]; then
-    $setenv -vvd $PWD
+    source $setenv -vvd $PWD
 fi
 
 export TEST_AUTHOR=$USER
