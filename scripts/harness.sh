@@ -45,7 +45,7 @@ done
 
 if [ ${#PERL5OPT_array[@]} -ne 0 ]; then
     PERL5OPT=$(join_array ' ' ${PERL5OPT_array[@]})
-    export PERL5OPT
+#    export PERL5OPT
     echo "Using PERL5OPT=$PERL5OPT"
 fi
 
@@ -61,6 +61,7 @@ PERL5OPT=$PERL5OPT perl $ENSDIR/ensembl-test/scripts/runtests.pl modules/t $SKIP
 rt=$?
 if [ $rt -eq 0 ]; then
   if [ "$COVERALLS" = 'true' ]; then
+    unset PERL5OPT
     echo "Running Devel::Cover coveralls report"
     cover --nosummary -report coveralls
   fi
