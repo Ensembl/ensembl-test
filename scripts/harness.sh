@@ -56,7 +56,7 @@ fi
 
 echo "Running test suite"
 echo "Executing: perl $ENSDIR/ensembl-test/scripts/runtests.pl modules/t $SKIP_TESTS"
-$PERL5OPT perl $ENSDIR/ensembl-test/scripts/runtests.pl modules/t $SKIP_TESTS
+PERL5OPT=$PERL5OPT perl $ENSDIR/ensembl-test/scripts/runtests.pl modules/t $SKIP_TESTS
 
 rt=$?
 if [ $rt -eq 0 ]; then
