@@ -45,6 +45,7 @@ done
 
 if [ ${#PERL5OPT_array[@]} -ne 0 ]; then
     PERL5OPT=\'$(join_array ' ' ${PERL5OPT_array[@]})\'
+    export PERL5OPT
     echo "Using PERL5OPT=$PERL5OPT"
 fi
 
@@ -55,7 +56,7 @@ fi
 
 echo "Running test suite"
 echo "Executing: perl $ENSDIR/ensembl-test/scripts/runtests.pl modules/t $SKIP_TESTS"
-perl $ENSDIR/ensembl-test/scripts/runtests.pl modules/t $SKIP_TESTS
+$PERL5OPT perl $ENSDIR/ensembl-test/scripts/runtests.pl modules/t $SKIP_TESTS
 
 rt=$?
 if [ $rt -eq 0 ]; then
