@@ -380,6 +380,12 @@ sub load_database {
 
     $config_hash->{dbname} = $dbname;
     $self->note("Creating database $dbname");
+    my %limits = ( 'mysql' => 64, 'pg' => 63 );
+    if (my $l = $limits{lc $self->db_conf->{driver}}) {
+        if (length($dbname) > $l) {
+            die "Cannot create the database because its name is longer than the maximum the driver allows ($l characters)";
+        }
+    }
     my $db = $self->create_and_use_db($driver_handle, $dbname);
 
     my $base_dir = $self->base_dump_dir($self->curr_dir());
