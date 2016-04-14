@@ -150,6 +150,7 @@ sub get_all_tests {
   my $is_test = sub {
     my ($suspect_file) = @_;
     return 0 unless $suspect_file =~ /\.t$/;
+    return 0 if $suspect_file =~ /^\./;
     if(! -f $suspect_file) {
       warn "Cannot find file '$suspect_file'";
     }
