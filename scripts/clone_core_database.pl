@@ -32,7 +32,7 @@ use POSIX;
 use Scalar::Util qw/looks_like_number/;
 
 my %global_tables = (
-  core => [qw/attrib_type meta coord_system external_db misc_attrib unmapped_reason/],
+  core => [qw/attrib_type meta coord_system external_db unmapped_reason/],
   funcgen => [qw/feature_set/],
 );
 
@@ -51,6 +51,7 @@ sub parse_options {
   my $opts = {
     port => 3306,
     user => 'ensro',
+    group => 'core',
     dest_port => 3306
   };
   
@@ -61,6 +62,7 @@ sub parse_options {
     pass|password|p=s
     dbname|database|db=s
     species=s
+    group=s
     
     dest_host|dest_hostname|dh=s
     dest_port|dP=i
@@ -92,11 +94,15 @@ sub load_registry {
   elsif($opts->{host} && $opts->{port} && $opts->{user} && $opts->{dbname}) {
     my %args = (
       -HOST => $opts->{host}, -PORT => $opts->{port},
-      -USER => $opts->{user}, -DBNAME => $opts->{dbname},
-      -SPECIES => $opts->{species}
+      -USER => $opts->{user}, -SPECIES => $opts->{species}
     );
     $args{-PASS} = $opts->{pass};
-    Bio::EnsEMBL::DBSQL::DBAdaptor->new(%args);
+    Bio::EnsEMBL::DBSQL::DBAdaptor->new(%args, -GROUP => $opts->{group}, -DBNAME => $opts->{dbname});
+    if ($opts->{group} ne 'core') {
+      my $dbname = $opts->{dbname};
+      $dbname =~ s/$opts->{group}/core/;
+      Bio::EnsEMBL::DBSQL::DBAdaptor->new(%args, -GROUP => 'core', -DBNAME => $dbname);
+    }
   }
   else {
     pod2usage(-msg => 'Misconfigured source database. Please give a -registry file or -host, -port, -user, -dbname and -species', -verbose => 1, -exitval => 1);
@@ -136,13 +142,23 @@ sub process {
   
   foreach my $species (keys %{$config_hash}) {
     foreach my $group (keys %{$config_hash->{$species}}) {
-      $is_dna = 0 if $group eq 'funcgen';
+      $is_dna = 0 if $group ne 'core';
       my $registry = 'Bio::EnsEMBL::Registry';
       my $from = $registry->get_DBAdaptor($species, $group);
       my $info = $config_hash->{$species}->{$group};
       my $regions = $info->{regions};
       my $adaptors = $info->{adaptors};
       my $to = $self->copy_database_structure($species, $group, $dbc);
+      if ($group ne 'core') {
+        $is_dna = 0;
+        my $dnadb = $registry->get_DBAdaptor($species, 'core');
+        if (!$dnadb) {
+          die "No dnadb found on source server, cannot continue\n";
+        }
+        $dnadb->species($species);
+        $from->dnadb($dnadb);
+        $to->dnadb($dnadb);
+      }
       $self->copy_globals($from, $to);
       my $slices = $self->copy_regions($from, $to, $regions, $is_dna);
       my $filter_exceptions = $info->{filter_exceptions};
