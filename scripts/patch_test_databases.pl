@@ -96,9 +96,11 @@ sub process {
       $self->dump_db($dba, $schema_details);
     }
     $multi = undef;
+
     print STDOUT "INFO: Finished working with species '$species'\n";
     print STDOUT '='x80; print STDOUT "\n";
   }
+  print STDOUT "INFO: Finished processing directory '$dir'\n";
   $self->convert_sqllite($dir);
   return;
 }
@@ -172,6 +174,8 @@ sub dump_db {
 
 sub convert_sqllite {
   my ($self, $dir) = @_;
+  print STDOUT "INFO: Converting directory '$dir' to SQLite\n";
+
   my $ud = File::Spec->updir();
   my $schema_converter = File::Spec->catdir(dirname(__FILE__), 'convert_test_schemas.sh');
   my $cwd = getcwd();
@@ -184,7 +188,11 @@ sub convert_sqllite {
   }
   if ($curr_dir !~ /ensembl\/modules\/t/) { return; }
   eval "require MooseX::App::Simple";
-  system("$schema_converter $curr_dir") unless ($@);
+  if($@) {
+      print STDOUT "ERROR: We don't seem to have MooseX::App::Simple installed, not doing SQLite convertion\n";
+      return;
+  }
+  system("$schema_converter $curr_dir");
 }
 
 sub cleanup_CLEAN {

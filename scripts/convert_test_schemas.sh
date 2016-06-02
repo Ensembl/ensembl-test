@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright [1999-2013] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute
 #
@@ -51,6 +51,10 @@ convert_schema() {
         (
             cd "${species}"
             for db_type in *; do
+		if [[ "${db_type}" == *"variation"* ]]; then
+		    echo "We don't dump variation databases as SQLite, bye."
+		    continue
+		fi
                 convert_schema "${species}" "${db_type}"
             done
         )
