@@ -80,6 +80,7 @@ use vars qw( @ISA @EXPORT );
   mock_object 
   ok_directory_contents 
   is_file_line_count
+  compare_file_line
   has_apache2_licence
   all_has_apache2_licence
   all_source_code
@@ -302,11 +303,61 @@ sub ok_directory_contents ($$;$) {
   return $result;
 }
 
+=head2 compare_file_line
+
+  Arg [1]    : String file to test. Can be a gzipped file or uncompressed
+  Arg [2]    : Line number to test
+  Arg [3]    : String, the expected line
+  Arg [3]    : String optional message to print to screen
+  Example    : compare_file_line('/etc/hosts', 5, 'On the fifth line it said', 'The line is as expected');
+  Description: Opens the given file (can be gzipped or not) and compares a given line number 
+               with an expected string
+  Returntype : Boolean Declares if the test succeeeded or not
+  Exceptions : none
+  Caller     : test scripts
+
+=cut
+
+sub compare_file_line ($$;$;$;$) {
+  my ($file, $line_number, $expected_line, $msg) = @_;
+  my $builder = __PACKAGE__->builder();
+  if(! -e $file) {
+    my $r = $builder->ok(0, $msg);
+    $builder->diag("$file does not exist");
+    return $r;
+  }
+
+  my $result_line;
+  my $sub_line = sub {
+    my ($fh, $line) = @_;
+    my $count = 0;
+    while(my $line = <$fh>) {
+      chomp $line;
+      $count++;
+      if ($count == $line_number) {
+        $result_line = $line;
+        last;
+      }
+    }
+    return;
+  };
+
+  if($file =~ /.gz$/) {
+    gz_work_with_file($file, 'r', $sub_line);
+  }
+  else {
+    work_with_file($file, 'r', $sub_line);
+  }
+
+  return $builder->cmp_ok($result_line, 'eq', $expected_line, $msg);
+}
+
 =head2 is_file_line_count
 
   Arg [1]    : String file to test. Can be a gzipped file or uncompressed
   Arg [2]    : Integer the number of expected rows
   Arg [3]    : String optional message to print to screen
+  Arg [4]    : Pattern for matching lines
   Example    : is_file_line_count('/etc/hosts', 10, 'We have 10 entries in /etc/hosts');
   Description: Opens the given file (can be gzipped or not) and counts the number of
                lines by simple line iteration
