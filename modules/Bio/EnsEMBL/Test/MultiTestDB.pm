@@ -522,6 +522,13 @@ sub get_DBAdaptor {
   return $self->{db_adaptors}->{$type};
 }
 
+sub add_DBAdaptor {
+  my ($self, $type, $adaptor) = @_;
+  die "No type specified" if ! $type;
+  $self->{db_adaptors}->{$type} = $adaptor;
+  return;
+}
+
 =head2 hide
 
   Arg [1]    : string $dbtype
