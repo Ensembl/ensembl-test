@@ -57,6 +57,11 @@ sub args {
 sub load {
   my ($self) = @_;
   my $mdb = Bio::EnsEMBL::Test::MultiTestDB->new($self->{opts}->{species}, $self->{opts}->{curr_dir}, 1);
+  if ($self->{opts}->{type} eq 'funcgen') {
+    ## Need to load core db as well
+    $mdb->load_database('core');
+    $mdb->create_adaptor('core');
+  }
   $mdb->load_database($self->{opts}->{type});
   $mdb->create_adaptor($self->{opts}->{type});
   $self->{mdb} = $mdb;
