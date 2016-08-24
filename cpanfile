@@ -9,3 +9,4 @@ requires 'Test::Builder::Module';
 requires 'IO::String';
 requires 'IO::Scalar';
 requires 'Test::FTP::Server';
+requires 'MooseX::App::Simple';
