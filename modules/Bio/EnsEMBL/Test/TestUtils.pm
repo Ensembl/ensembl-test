@@ -482,9 +482,9 @@ sub has_apache2_licence {
   if($found_copyright && $found_url && $found_warranties) {
     return __PACKAGE__->builder->ok(1, "$file has a Apache v2.0 licence declaration");
   }
-  __PACKAGE__->builder->diag("$file is missing Apache v2.0 declaration");
-  __PACKAGE__->builder->diag("$file is missing Apache URL");
-  __PACKAGE__->builder->diag("$file is missing Apache v2.0 warranties");
+  __PACKAGE__->builder->diag("$file is missing Apache v2.0 declaration") unless $found_copyright;
+  __PACKAGE__->builder->diag("$file is missing Apache URL")              unless $found_url;
+  __PACKAGE__->builder->diag("$file is missing Apache v2.0 warranties")  unless $found_warranties;
   return __PACKAGE__->builder->ok(0, "$file does not have an Apache v2.0 licence declaration in the first $max_lines lines");
 }
 
