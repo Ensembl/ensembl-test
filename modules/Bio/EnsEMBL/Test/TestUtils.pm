@@ -503,10 +503,8 @@ sub has_apache2_licence {
 
 sub all_source_code {
   my @starting_dirs = @_ ? @_ : _starting_dirs();
-  my %starting_dir_lookup = map {$_,1} @starting_dirs;
   my @files;
   my @dirs = @starting_dirs;
-  my @modules;
   while ( my $file = shift @dirs ) {
     if ( -d $file ) {
       opendir my $dir, $file or next;
@@ -514,7 +512,7 @@ sub all_source_code {
         grep { $_ ne 'CVS' && $_ ne '.svn' && $_ ne '.git' && $_ !~ /^\./ } 
         File::Spec->no_upwards(readdir $dir);
       closedir $dir;
-      push(@dirs, map {File::Spec->catpath($file, $_)} @new_files);
+      push(@dirs, map {File::Spec->catfile($file, $_)} @new_files);
     }
     if ( -f $file ) {
       next unless $file =~ /(?-xism:\.(?:[cht]|p[lm]|java|sql))/;
