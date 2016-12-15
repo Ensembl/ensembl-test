@@ -165,7 +165,7 @@ sub run_beekeeper {
   my $url = $self->hive_url();
   my $meadow = $self->meadow();
   my $max_workers = $self->max_workers();
-  my $run = "beekeeper.pl -url $url -meadow $meadow -total_running_workers_max $max_workers -reg_conf " . 
+  my $run = "beekeeper.pl -url $url -meadow_type $meadow -total_running_workers_max $max_workers -reg_conf " .
     $self->reg_file() . ' '. $cmd_line_options;
   $self->builder()->note("Starting pipeline");
   $self->builder()->note($run);
