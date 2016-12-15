@@ -122,7 +122,7 @@ Runs beekeeper in a loop. You can control the sleep time using
 sub run_beekeeper_loop {
   my ($self) = @_;
   my $sleep = $self->beekeeper_sleep();
-  return $self->run_beekeeper('-no_analysis_stats -loop -sleep '.$sleep);
+  return $self->run_beekeeper('-loop -sleep '.$sleep);
 }
 
 =head2 run_beekeeper_final_status
