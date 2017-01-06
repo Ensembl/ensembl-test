@@ -63,6 +63,7 @@ use Devel::Peek;
 use Devel::Cycle;
 use Error qw(:try);
 use IO::String;
+use Time::Piece;
 use PadWalker qw/peek_our peek_my/;
 use Test::Builder::Module;
 use Bio::EnsEMBL::Utils::IO qw/gz_work_with_file work_with_file/;
@@ -86,6 +87,8 @@ use vars qw( @ISA @EXPORT );
   all_has_apache2_licence
   all_source_code
 );
+
+my $this_year = Time::Piece->new()->year;
 
 =head2 test_getter_setter
 
@@ -462,7 +465,7 @@ sub has_apache2_licence {
   my ($file) = @_;
   my $count = 0;
   my $max_lines = 30;
-  my ($found_copyright, $found_url, $found_warranties, $skip_test) = (0,0,0,0);
+  my ($found_title, $found_sanger_copyright, $found_ebi_copyright, $found_url, $found_warranties, $skip_test) = (0,0,0,0,0,0);
   open my $fh, '<', $file or die "Cannot open $file: $!";
   while(my $line = <$fh>) {
     last if $count >= $max_lines;
@@ -470,7 +473,9 @@ sub has_apache2_licence {
       $skip_test = 1;
       last;
     }
-    $found_copyright = 1 if $line =~ /Apache License, Version 2\.0/;
+    $found_title = 1 if $line =~ /Apache License, Version 2\.0/;
+    $found_sanger_copyright = 1 if $line =~ /Copyright \[1999-2015\] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute/;
+    $found_ebi_copyright = 1 if $line =~ /Copyright \[2016-$this_year\] EMBL-European Bioinformatics Institute/;
     $found_url = 1 if $line =~ /www.apache.org.+LICENSE-2.0/;
     $found_warranties = 1 if $line =~ /WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND/;
     $count++;
@@ -479,13 +484,15 @@ sub has_apache2_licence {
   if($skip_test) {
     return __PACKAGE__->builder->ok(1, "$file has a no critic (RequireApache2Licence) directive");
   }
-  if($found_copyright && $found_url && $found_warranties) {
+  if($found_title && $found_sanger_copyright && $found_ebi_copyright && $found_url && $found_warranties) {
     return __PACKAGE__->builder->ok(1, "$file has a Apache v2.0 licence declaration");
   }
-  __PACKAGE__->builder->diag("$file is missing Apache v2.0 declaration") unless $found_copyright;
+  __PACKAGE__->builder->diag("$file is missing Apache v2.0 declaration") unless $found_title;
+  __PACKAGE__->builder->diag("$file is missing Sanger copyright")        unless $found_sanger_copyright;
+  __PACKAGE__->builder->diag("$file is missing EBI copyright")           unless $found_ebi_copyright;
   __PACKAGE__->builder->diag("$file is missing Apache URL")              unless $found_url;
   __PACKAGE__->builder->diag("$file is missing Apache v2.0 warranties")  unless $found_warranties;
-  return __PACKAGE__->builder->ok(0, "$file does not have an Apache v2.0 licence declaration in the first $max_lines lines");
+  return __PACKAGE__->builder->ok(0, "$file does not have a complete Apache v2.0 licence declaration in the first $max_lines lines");
 }
 
 =head2 all_source_code
