@@ -66,6 +66,7 @@ use IO::String;
 use PadWalker qw/peek_our peek_my/;
 use Test::Builder::Module;
 use Bio::EnsEMBL::Utils::IO qw/gz_work_with_file work_with_file/;
+use Time::Piece;
 
 use vars qw( @ISA @EXPORT );
 
@@ -450,7 +451,7 @@ sub all_has_apache2_licence {
   Arg [1]    : File path to the file to test
   Example    : has_apache2_licence('/my/file.pm');
   Description: Asserts if we can find the short version of the Apache v2.0
-               licence within the first 30 lines of the given file. You can
+               licence and correct Copyright year within the first 30 lines of the given file. You can
                skip the test with a C<no critic (RequireApache2Licence)> tag. We
                also support the American spelling of this.
   Returntype : None
@@ -462,7 +463,9 @@ sub has_apache2_licence {
   my ($file) = @_;
   my $count = 0;
   my $max_lines = 30;
-  my ($found_copyright, $found_url, $found_warranties, $skip_test) = (0,0,0,0);
+  my ($found_copyright, $found_url, $found_warranties, $skip_test, $found_sanger_embl_ebi_year, $found_embl_ebi_year) = (0,0,0,0,0,0);
+  my $current_year = Time::Piece->new()->year();
+
   open my $fh, '<', $file or die "Cannot open $file: $!";
   while(my $line = <$fh>) {
     last if $count >= $max_lines;
@@ -473,19 +476,23 @@ sub has_apache2_licence {
     $found_copyright = 1 if $line =~ /Apache License, Version 2\.0/;
     $found_url = 1 if $line =~ /www.apache.org.+LICENSE-2.0/;
     $found_warranties = 1 if $line =~ /WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND/;
+    $found_sanger_embl_ebi_year = 1 if $line =~ /Copyright \[1999\-2015\] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute/;
+    $found_embl_ebi_year = 1 if $line =~ /Copyright \[2016\-$current_year\] EMBL-European Bioinformatics Institute/;
     $count++;
   }
   close $fh;
   if($skip_test) {
     return __PACKAGE__->builder->ok(1, "$file has a no critic (RequireApache2Licence) directive");
   }
-  if($found_copyright && $found_url && $found_warranties) {
-    return __PACKAGE__->builder->ok(1, "$file has a Apache v2.0 licence declaration");
+  if($found_copyright && $found_url && $found_warranties && $found_sanger_embl_ebi_year && $found_embl_ebi_year) {
+    return __PACKAGE__->builder->ok(1, "$file has a Apache v2.0 licence declaration and correct Copyright year [2016-$current_year]");
   }
   __PACKAGE__->builder->diag("$file is missing Apache v2.0 declaration") unless $found_copyright;
   __PACKAGE__->builder->diag("$file is missing Apache URL")              unless $found_url;
   __PACKAGE__->builder->diag("$file is missing Apache v2.0 warranties")  unless $found_warranties;
-  return __PACKAGE__->builder->ok(0, "$file does not have an Apache v2.0 licence declaration in the first $max_lines lines");
+  __PACKAGE__->builder->diag("$file is missing Copyright \[1999\-2015\] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute")  unless $found_sanger_embl_ebi_year;
+  __PACKAGE__->builder->diag("$file is missing Copyright \[2016\-$current_year\] EMBL-European Bioinformatics Institute")  unless $found_embl_ebi_year;
+  return __PACKAGE__->builder->ok(0, "$file does not have an Apache v2.0 licence declaration and correct Copyright year [2016-$current_year] in the first $max_lines lines");
 }
 
 =head2 all_source_code
