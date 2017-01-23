@@ -98,8 +98,8 @@ sub init_pipeline {
   my $dba = $self->pipe_db();
   my $dbc = $dba->dbc();
   my $run = sprintf(
-    "init_pipeline.pl %s -registry %s -pipeline_db -host=%s -pipeline_db -port=%s -pipeline_name=%s -password '%s' -pipeline_db -dbname=%s -user=%s %s",
-    $pipeline, $self->reg_file(), $dbc->host(), $dbc->port(), $dbc->dbname(), $dbc->password(), $dbc->dbname(), $dbc->user(), $self->pipe_options 
+    "init_pipeline.pl %s -registry %s -pipeline_url '%s://%s:%s@%s:%s/%s' %s",
+    $pipeline, $self->reg_file(), $dbc->driver(), $dbc->user(), $dbc->password(), $dbc->host(), $dbc->port(), $dbc->dbname(), $self->pipe_options
   );
   $self->builder()->note("Initiating pipeline");
   $self->builder()->note($run);
@@ -122,7 +122,7 @@ Runs beekeeper in a loop. You can control the sleep time using
 sub run_beekeeper_loop {
   my ($self) = @_;
   my $sleep = $self->beekeeper_sleep();
-  return $self->run_beekeeper('-no_analysis_stats -loop -sleep '.$sleep);
+  return $self->run_beekeeper('-loop -sleep '.$sleep);
 }
 
 =head2 run_beekeeper_final_status
@@ -165,7 +165,7 @@ sub run_beekeeper {
   my $url = $self->hive_url();
   my $meadow = $self->meadow();
   my $max_workers = $self->max_workers();
-  my $run = "beekeeper.pl -url $url -meadow $meadow -total_running_workers_max $max_workers -reg_conf " . 
+  my $run = "beekeeper.pl -url $url -meadow_type $meadow -total_running_workers_max $max_workers -reg_conf " .
     $self->reg_file() . ' '. $cmd_line_options;
   $self->builder()->note("Starting pipeline");
   $self->builder()->note($run);
