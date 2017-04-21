@@ -434,7 +434,23 @@ sub load_sql {
     $self->note("Reading SQL from '$sql_file'");
     work_with_file($sql_file, 'r', sub {
       my ($fh) = @_;
+      my $is_comment = 0;
       while(my $line = <$fh>) {
+
+        if($is_comment == 1) {
+          if($line =~ m/\*\//) {
+            $is_comment = 0;
+          }
+          next;
+        }
+
+        if($line =~ m/\/\*/) {
+          if($line !~ m/\*\//) {
+            $is_comment = 1;
+          }
+          next;
+        }
+
         #ignore comments and white-space lines
         if($line !~ /^#/ && $line =~ /\S/) {
           $sql_com .= $line;
