@@ -463,9 +463,11 @@ sub load_sql {
 
   $sql_com =~ s/;$//;
   my @statements = split( /;/, $sql_com );
+  $db->do("set foreign_key_checks = 0");
   foreach my $sql (@statements) {
     $db->do($sql);
   }
+  $db->do("set foreign_key_checks = 1");
 
   return;
 }
