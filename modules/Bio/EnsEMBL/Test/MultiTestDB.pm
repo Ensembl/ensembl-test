@@ -465,7 +465,12 @@ sub load_sql {
   my @statements = split( /;/, $sql_com );
   $db->do("set foreign_key_checks = 0") if $self->db_conf->{driver} =~ /mysql/;
   foreach my $sql (@statements) {
-    $db->do($sql);
+    eval {
+      $db->do($sql);
+    };
+    if($@) {
+      throw "Could not execute SQL: $sql\n";
+    }
   }
   $db->do("set foreign_key_checks = 1") if $self->db_conf->{driver} =~ /mysql/;
 
