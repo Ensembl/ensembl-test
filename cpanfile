@@ -12,7 +12,7 @@ requires 'Test::FTP::Server';
 requires 'MooseX::App::Simple';
 requires 'File::Path';
 requires 'File::Spec';
-requires 'Scalar';
+requires 'Scalar::Util';
 requires 'Test::Exception';
 requires 'Test::TCP';
 requires 'English';
