@@ -1,0 +1,18 @@
+# This provides a default set of configurations which is merged with your
+# provided MultiTestDB.conf.
+#
+# You should provide a MultiTestDB.conf which defines the databases
+
+{
+  'databases' => {
+    'homo_sapiens' => { 
+      'core' => 'Bio::EnsEMBL::DBSQL::DBAdaptor',
+    },
+    'mus_musculus' => { 
+      'core' => 'Bio::EnsEMBL::DBSQL::DBAdaptor',
+    },
+    'multi' => {
+      'compara' => 'Bio::EnsEMBL::Compara::DBSQL::DBAdaptor',
+    },
+  },
+}
