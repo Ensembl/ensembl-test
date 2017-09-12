@@ -1,6 +1,7 @@
 requires 'DBI';
 requires 'DBD::mysql';
 requires 'Test::More';
+requires 'Test::Warnings';
 requires 'Devel::Peek';
 requires 'Devel::Cycle';
 requires 'Error';
