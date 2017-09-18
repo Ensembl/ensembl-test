@@ -1,56 +1,43 @@
 dist: precise
-language: "perl"
-
+language: perl
 perl:
-  - "5.14"
-  - "5.12"
-  - "5.10"
-#  - "5.22"
-#  - "5.24"
-
+- '5.14'
+- '5.12'
+- '5.10'
 env:
-  - COVERALLS=true  DB=mysql
-  - COVERALLS=false DB=mysql
-  - COVERALLS=false DB=sqlite
-  
+- COVERALLS=true  DB=mysql
+- COVERALLS=false DB=mysql
+- COVERALLS=false DB=sqlite
 sudo: false
-  
 addons:
   apt:
     packages:
     - unzip
-
 before_install:
-    - git clone --branch master --depth 1 https://github.com/Ensembl/ensembl.git
-    - git clone -b bioperl-release-1-6-1 --depth 1 https://github.com/bioperl/bioperl-live.git
-
-
+- git clone --branch master --depth 1 https://github.com/Ensembl/ensembl.git
+- git clone -b bioperl-release-1-6-1 --depth 1 https://github.com/bioperl/bioperl-live.git
 install:
-    - cpanm -v --installdeps --notest .
-    - cpanm -n Devel::Cover::Report::Coveralls
-    - cpanm -n DBD::SQLite
-    - cp travisci/MultiTestDB.conf.travisci.mysql  modules/t/MultiTestDB.conf.mysql
-    - cp travisci/MultiTestDB.conf.travisci.SQLite modules/t/MultiTestDB.conf.SQLite
-
+- cpanm -v --installdeps --notest .
+- cpanm -n Devel::Cover::Report::Coveralls
+- cpanm -n DBD::SQLite
+- cp travisci/MultiTestDB.conf.travisci.mysql  modules/t/MultiTestDB.conf.mysql
+- cp travisci/MultiTestDB.conf.travisci.SQLite modules/t/MultiTestDB.conf.SQLite
 script: "./travisci/harness.sh"
-
-# Get the matrix to only build coveralls support when on 5.10
 matrix:
   exclude:
-    - perl: "5.10"
-      env: COVERALLS=false DB=mysql
-    - perl: "5.12"
-      env: COVERALLS=false DB=sqlite
-    - perl: "5.12"
-      env: COVERALLS=true  DB=mysql
-    - perl: "5.14"
-      env: COVERALLS=false DB=sqlite
-    - perl: "5.14"
-      env: COVERALLS=true  DB=mysql
-
+  - perl: '5.10'
+    env: COVERALLS=false DB=mysql
+  - perl: '5.12'
+    env: COVERALLS=false DB=sqlite
+  - perl: '5.12'
+    env: COVERALLS=true  DB=mysql
+  - perl: '5.14'
+    env: COVERALLS=false DB=sqlite
+  - perl: '5.14'
+    env: COVERALLS=true  DB=mysql
 notifications:
   email:
     on_success: always
     on_failure: always
   slack:
-    secure: gTcWzQsVHKPxRJ1u0U2l2+QVujmG1uFW44kAO3l46V5Im5uLTOLeM20ykk6ox4kaPHLs5ky7NGzcJmTDLaHBKjI4Sa34l4tJd0lhkv+hKj9TSv5pDDCdUX8v869Nm8LqJKh26HqvVcN7eHFRatLD/tfYvvkaP1rLLhwLLdr7czQ=
+    secure: qRSakRwrSq8vS1DT8AKw5rpdL+gfGv/q2CgG6y6AmoVJZw+Mk7T1qaujLtz6DpOdcerWFt/pDbmcHZIhB0QhQj90BesMy+e9FW5xCyaARd3mXUdYzJi8oEdartv/T5d7ggXm2ruLzsMKLaGbqhgcnML/bBFGMA2PC9FaXjTk638HaXuU1LI1mJuSjZ/8crDdCRovrKhy5lT6giyrd7OV/yDK+QhC9weAV4bcsH0uyp3IVU6pZbUv4QtqoQ5Yn8U5LdB/f4i6VM9hHCYqYVM7Ar5E/uKFJEDfagKxwoKOwz7VOqVCQjGII/7aeOO33C1gs2RIAL/LR7rw9CA0hyLbX3/WFtaejlaRUSLuTvmj6xEVNxgUKRYcbzk4kiuewnZWxPJI78vLzH2URiQTozPWpyWD+bsYfNp/XX+i2FWOoaObyoeOws39KSJSEdAUFmDvoxVAE5R/kjp6VwCftHChq7zhz8NLurI8euD1v5maIuL6qGuPpQ+QJ6UtMJc5yhJchojqxDulqg9ZKGYqcayh3yUDT1MThK1DUSOLBGezGaeYla2dUCGNCNGUhZn+X0fV7m53djXJJrmq0qwb86Sa2M/n4Knql3sV0TlYOXj1bAa7ah9Exp3fY3uFs1iO5xtgcXJyVUfiuFZkMh87+QzcSOsyeBdTnKns80Pc6hrjoAs=
