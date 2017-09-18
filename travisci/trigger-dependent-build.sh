@@ -55,6 +55,16 @@ function env_var {
     sed 's/{"env_var":{"id":"\([^"]*\)",.*/\1/'
 }
 
+sp="/-\|"
+sc=0
+spin() {
+   printf "\b${sp:sc++:1}"
+   ((sc==${#sp})) && sc=0
+}
+endspin() {
+   printf "\r%s\n" "$@"
+}
+
 # Only run for master builds. Pull request builds have the branch set to master,
 # so ignore those too.
 if [ "${TRAVIS_BRANCH}" != "master" ] || [ "${TRAVIS_PULL_REQUEST}" != "false" ]; then
@@ -117,18 +127,22 @@ for dep_repo in "${dep_repos[@]}"; do
     
     # Wait for the build to start using the new environment variables.
     i=0
+    printf "Waiting for build $dep_repo_master_build_id to start  "
+    build_started=""
     until travis_api /build/$dep_repo_master_build_id | grep -q '"state": "started"'; do
-	echo "Waiting for build $dep_repo_master_build_id to start"
+	spin
 	sleep 5
 	
 	true $(( i++ ))
 	if [ $i -eq 100 ]
 	then
-	    echo "Build $dep_repo_master_build_id not yet started, reached max waiting time ... skip"
-	    continue
+	    echo " reached max waiting time ... stop waiting"
+	    build_started="not yet"
+	    break
 	fi
     done
-    echo "Build $dep_repo_master_build_id started"
+    endspin
+    echo "Build $dep_repo_master_build_id $build_started started"
 
     # Remove all of the environment variables set above. This does mean that if this
     # script is terminated for whatever reason, these will need to be cleaned up
