@@ -32,7 +32,7 @@ install:
 script: "./travisci/harness.sh"
 
 # Add build stage to trigger dependent builds, run sequentially after all test jobs
-# specified by the build matrix expansion has completed successfully
+# specified by the build matrix expansion have completed successfully
 jobs:
   include:
     - stage: trigger_dependent_builds
