@@ -1,0 +1,59 @@
+language: perl
+
+perl:
+  - '5.14'
+  - '5.12'
+  - '5.10'
+
+env:
+  - COVERALLS=true  DB=mysql
+  - COVERALLS=false DB=mysql
+  - COVERALLS=false DB=sqlite
+
+sudo: false
+
+addons:
+  apt:
+    packages:
+    - unzip
+
+before_install:
+    - git clone --branch master --depth 1 https://github.com/Ensembl/ensembl.git
+    - git clone -b bioperl-release-1-6-1 --depth 1 https://github.com/bioperl/bioperl-live.git
+    
+install:
+    - cpanm -v --installdeps --notest .
+    - cpanm -n Devel::Cover::Report::Coveralls
+    - cpanm -n DBD::SQLite
+    - cp travisci/MultiTestDB.conf.travisci.mysql  modules/t/MultiTestDB.conf.mysql
+    - cp travisci/MultiTestDB.conf.travisci.SQLite modules/t/MultiTestDB.conf.SQLite
+    - mysql -u root -h localhost -e 'GRANT ALL PRIVILEGES ON *.* TO "travis"@"%"'
+
+script: "./travisci/harness.sh"
+
+# Add build stage to trigger dependent builds, run sequentially after all test jobs
+# specified by the build matrix expansion have completed successfully
+jobs:
+  include:
+    - stage: trigger_dependent_builds
+      script: ./travisci/trigger-dependent-build.sh
+
+matrix:
+  exclude:
+  - perl: '5.10'
+    env: COVERALLS=false DB=mysql
+  - perl: '5.12'
+    env: COVERALLS=false DB=sqlite
+  - perl: '5.12'
+    env: COVERALLS=true  DB=mysql
+  - perl: '5.14'
+    env: COVERALLS=false DB=sqlite
+  - perl: '5.14'
+    env: COVERALLS=true  DB=mysql
+    
+notifications:
+  email:
+    on_success: always
+    on_failure: always
+  slack:
+    secure: gTcWzQsVHKPxRJ1u0U2l2+QVujmG1uFW44kAO3l46V5Im5uLTOLeM20ykk6ox4kaPHLs5ky7NGzcJmTDLaHBKjI4Sa34l4tJd0lhkv+hKj9TSv5pDDCdUX8v869Nm8LqJKh26HqvVcN7eHFRatLD/tfYvvkaP1rLLhwLLdr7czQ=
