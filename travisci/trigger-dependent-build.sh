@@ -33,14 +33,14 @@ endpoint=https://api.travis-ci.org
 
 # Get this repo ID
 repo_id () {
-    curl -s -X GET -H "Authorization: token $auth_token" -H "Travis-API-Version: 3" https://api.travis-ci.org/repo/$1 | python3 -c "import sys, json; print(json.load(sys.stdin)['id'])"
+    curl -s -X GET -H "Authorization: token $AUTH_TOKEN" -H "Travis-API-Version: 3" https://api.travis-ci.org/repo/$1 | python3 -c "import sys, json; print(json.load(sys.stdin)['id'])"
 }
 
 # Make an API request using the auth token set above. First argument is the path
 # of the API method, all later arguments are passed to curl directly.
 travis_api () {
   curl -s $endpoint$1 \
-       -H "Authorization: token $auth_token" \
+       -H "Authorization: token $AUTH_TOKEN" \
        -H 'Content-Type: application/json' \
        -H 'Travis-API-Version: 3' \
        "${@:2}"
@@ -72,7 +72,7 @@ if [ "${TRAVIS_BRANCH}" != "master" ] || [ "${TRAVIS_PULL_REQUEST}" != "false" ]
 fi
 
 # The list of downstream dependent repos
-dep_repos=("Ensembl%2Fensembl")
+dep_repos=("avullo%2Fensembl")
 
 for dep_repo in "${dep_repos[@]}"; do
     # Get the ID of the dependent repo
