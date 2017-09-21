@@ -1,9 +1,8 @@
 language: perl
-
 perl:
-- '5.14'
-- '5.12'
-- '5.10'
+  - '5.14'
+  - '5.12'
+  - '5.10'
 
 env:
   matrix:
@@ -11,7 +10,7 @@ env:
   - COVERALLS=false DB=mysql
   - COVERALLS=false DB=sqlite
   global:
-    secure: V4m6EvyHDDTbT/+NqteOGQbnHvrPUoVyXW02fLi/7/WckRroLqj4dmTHBEmQFdGDfYRS+/WkEijU2qNAe1A0Hlh79eWPvSZsiCTjEgt+0quNN+lYJGwKzLI27xM9YAXNCgVgpSsRLDcluf+bNHECKdpJPFL2TvgNa5vbbesxOHiUw8i4g/C66h4e8D2OnUdvNePfuSoqGpK2Q+lotQyQzI2nVjDsLtNc9VlGKB/EOKF9w5Ei/RYnxli58qG2gKLN8ut4oO8MAzCNfcLzfJFrqa43znW9HIhzw8JH2SQsBb6q1bXkLHB3Wu23w3G0bCgOVmrFzC/bxTdTOZBxGSAJjbEnMOjDqtNeMli5suRdo/5CvYQ42zVf9d0UxyX/AWuVicjKi6q4rujd/z55hm+Dyd5UBHjWg5QoeGqNYaU29hkLOTo9P4wKEvjdOF0ccU6lTad0I5nDSzRWfYAHcJWajE+Ms3TZ/dDZ2PfkPRLshEtufx++eEnKB1YMJaLi8e7A10RI9A8YZqerlk/Amo3C6aljCl4qA5G5ZBhuTGDgXXPxZC0xKQ72Myz/iKs3jrjbz2s3JFVQD0AamVBIE7HpprSGEc0uSXhSAuhtBINawcWod4ut/FbxP/de821BkRnEppt2n5bVdd530H88gQPiIcZ2ZlPf6tc7mXWGTFOoOeE=
+    secure: IbEJR4ZkrgxYUJyQ0JxBY2NtBnJMvxKaRvVQaYutxLRW2qry3eFMJHjp3fFjmNRTK8vEobRODK2pAuXyTcYh/iThOwgXq4oS9cVBNc5/Vr5OsQgMqu/GHqDRW2WvTI0niSKZA5dq0yaDEShatwmEvLfz8berwN8QJM6XbVmT0FGwJBq9QG45t5hRbJVXsTgVGZad3nUjGhMoDD7iOkfApou40Tw6z2bFpItbTpmM8SOadOT26dPNaVA6Cn4+HO9kTXdFBOuq9/VoVe1s2ObsnVLf4jJqYcdHUg9L+VTp4xzfXIsvrzvPbAQm5Xj5JjjWqr43yEv6fOYQYtKdYhes1g3+wPrGTmcCjRm3SSp39RWpk9Po4o67kKmu1mG+gRSJwY5Xzj86TkO726cGhxK8v3Nra0h9rRAp+oeWJHAFVCYmeo5scZnrnEllLNc42pxsDXvcFS2nBwVcF5di82rSIT4RdgBN7C6wMBAzanUGibwJYuieBtJ5i4/TWu5wOQyohWv02OThs2YMsFry2gFVJKExbzmJMSYXos9AqjdP8iua/PFVTqNB4XeHQSYK3xxttYxASS0ZNb358OfnZhwx2Yvg1HNE7U0ShKkshw/KpoH132TP7C4usVSoxA28jnM0PvljRLRfWuBI62bsJr68b7X3m83eTZTaBKoge6l/f1w=
 
 sudo: false
 
@@ -31,7 +30,6 @@ install:
   - cp travisci/MultiTestDB.conf.travisci.mysql  modules/t/MultiTestDB.conf.mysql
   - cp travisci/MultiTestDB.conf.travisci.SQLite modules/t/MultiTestDB.conf.SQLite
   - mysql -u root -h localhost -e 'GRANT ALL PRIVILEGES ON *.* TO "travis"@"%"'
-
 script: "./travisci/harness.sh"
 
 jobs:
@@ -56,3 +54,5 @@ notifications:
   email:
     on_success: always
     on_failure: always
+  slack:
+    secure: gTcWzQsVHKPxRJ1u0U2l2+QVujmG1uFW44kAO3l46V5Im5uLTOLeM20ykk6ox4kaPHLs5ky7NGzcJmTDLaHBKjI4Sa34l4tJd0lhkv+hKj9TSv5pDDCdUX8v869Nm8LqJKh26HqvVcN7eHFRatLD/tfYvvkaP1rLLhwLLdr7czQ=
