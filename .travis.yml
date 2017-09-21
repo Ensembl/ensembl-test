@@ -1,4 +1,5 @@
 language: perl
+
 perl:
   - '5.14'
   - '5.12'
@@ -10,7 +11,7 @@ env:
   - COVERALLS=false DB=mysql
   - COVERALLS=false DB=sqlite
   global:
-    secure: IbEJR4ZkrgxYUJyQ0JxBY2NtBnJMvxKaRvVQaYutxLRW2qry3eFMJHjp3fFjmNRTK8vEobRODK2pAuXyTcYh/iThOwgXq4oS9cVBNc5/Vr5OsQgMqu/GHqDRW2WvTI0niSKZA5dq0yaDEShatwmEvLfz8berwN8QJM6XbVmT0FGwJBq9QG45t5hRbJVXsTgVGZad3nUjGhMoDD7iOkfApou40Tw6z2bFpItbTpmM8SOadOT26dPNaVA6Cn4+HO9kTXdFBOuq9/VoVe1s2ObsnVLf4jJqYcdHUg9L+VTp4xzfXIsvrzvPbAQm5Xj5JjjWqr43yEv6fOYQYtKdYhes1g3+wPrGTmcCjRm3SSp39RWpk9Po4o67kKmu1mG+gRSJwY5Xzj86TkO726cGhxK8v3Nra0h9rRAp+oeWJHAFVCYmeo5scZnrnEllLNc42pxsDXvcFS2nBwVcF5di82rSIT4RdgBN7C6wMBAzanUGibwJYuieBtJ5i4/TWu5wOQyohWv02OThs2YMsFry2gFVJKExbzmJMSYXos9AqjdP8iua/PFVTqNB4XeHQSYK3xxttYxASS0ZNb358OfnZhwx2Yvg1HNE7U0ShKkshw/KpoH132TP7C4usVSoxA28jnM0PvljRLRfWuBI62bsJr68b7X3m83eTZTaBKoge6l/f1w=
+    secure: EbGoRzfTTy/nlGPRYOEhKcYnIIrUHeM5etlqdAsMrfOkCCVJe7/QIWUG7hx1qdprIPdrKZ0jnmzBO3STz5m+TrsE/rAZjTM/MyEtwxAFEsdNlOKeozyE4Y4kwFMOqiLAFhHPtd3JhV92VMj3VSGVLkhNaaXbz1kj/aU14hOhbT4=
 
 sudo: false
 
@@ -30,6 +31,8 @@ install:
   - cp travisci/MultiTestDB.conf.travisci.mysql  modules/t/MultiTestDB.conf.mysql
   - cp travisci/MultiTestDB.conf.travisci.SQLite modules/t/MultiTestDB.conf.SQLite
   - mysql -u root -h localhost -e 'GRANT ALL PRIVILEGES ON *.* TO "travis"@"%"'
+
+
 script: "./travisci/harness.sh"
 
 jobs:
