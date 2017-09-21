@@ -83,7 +83,7 @@ for dep_repo in "${dep_repos[@]}"; do
 
     # Wait until request is approved or max amount of time has passed
     i=0
-    echo "Waiting for build request $dep_repo_master_build_request_id to be approved"
+    echo "Waiting for build request $dep_repo_master_build_request_id to be approved "
     build_request_approved=""
     until travis_api /repo/$dep_repo/request/$dep_repo_master_build_request_id | grep -q '"result": "approved"'; do
 	spin
@@ -96,6 +96,7 @@ for dep_repo in "${dep_repos[@]}"; do
 	    exit 1
 	fi
     done
+    endspin
     echo "Build request approved."
 
     # Get the ID of the master build.
