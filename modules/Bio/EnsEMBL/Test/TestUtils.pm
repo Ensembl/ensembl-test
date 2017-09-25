@@ -522,7 +522,7 @@ sub all_source_code {
       push(@dirs, map {File::Spec->catfile($file, $_)} @new_files);
     }
     if ( -f $file ) {
-      next unless $file =~ /(?-xism:\.(?:[cht]|p[lm]|java|sql))/;
+      next unless $file =~ /\.([chtr]|p[lmy]|sh|java|(my|pg|)sql|sqlite)$/i;
       push(@files, $file);
     }
   } # while
