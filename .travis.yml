@@ -32,7 +32,6 @@ install:
   - cp travisci/MultiTestDB.conf.travisci.SQLite modules/t/MultiTestDB.conf.SQLite
   - mysql -u root -h localhost -e 'GRANT ALL PRIVILEGES ON *.* TO "travis"@"%"'
 
-
 script: "./travisci/harness.sh"
 
 jobs:
@@ -58,4 +57,4 @@ notifications:
     on_success: always
     on_failure: always
   slack:
-    secure: gTcWzQsVHKPxRJ1u0U2l2+QVujmG1uFW44kAO3l46V5Im5uLTOLeM20ykk6ox4kaPHLs5ky7NGzcJmTDLaHBKjI4Sa34l4tJd0lhkv+hKj9TSv5pDDCdUX8v869Nm8LqJKh26HqvVcN7eHFRatLD/tfYvvkaP1rLLhwLLdr7czQ=
+    secure: mS8ac72wmNRN6sz9nNyoFf59xnC75sU7TW4v/kUfC6hTW8pmwdx4ss1P4qkegJJb3bvxj+oKQRUqk8BtApozPyNXTkBDTMjsPXH0IQ4uz9JE5PHIzLpW1PMPiiV/JbyM2LX8vUFm/CA1t/tiwzSQ3PqrN3KjTrqbcyrEe+hD+jQ=
