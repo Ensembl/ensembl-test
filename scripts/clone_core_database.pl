@@ -1,13 +1,13 @@
 #!/usr/bin/env perl
 # Copyright [1999-2015] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute
-# Copyright [2016-2018] EMBL-European Bioinformatics Institute
-# 
+# Copyright [2016-2017] EMBL-European Bioinformatics Institute
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -34,7 +34,7 @@ use Scalar::Util qw/looks_like_number/;
 
 my %global_tables = (
   core => [qw/attrib_type meta coord_system external_db unmapped_reason/],
-  funcgen => [qw/feature_set/],
+  funcgen => [qw/ analysis analysis_description epigenome experiment experimental_group external_db feature_type meta meta_coord regulatory_build/],
 );
 
 run();
@@ -55,7 +55,7 @@ sub parse_options {
     group => 'core',
     dest_port => 3306
   };
-  
+
   GetOptions($opts, qw/
     host|hostname|h=s
     port|P=i
@@ -64,19 +64,20 @@ sub parse_options {
     dbname|database|db=s
     species=s
     group=s
-    
+
     dest_host|dest_hostname|dh=s
     dest_port|dP=i
     dest_user|dest_username|du=s
     dest_pass|dest_password|dp=s
-    
+    dest_dbname|dd=s
+
     registry|reg_conf=s
-    
+
     json=s
-    
+
     directory=s
     drop_database
-    
+
     help
     man
   /) or pod2usage(-msg => 'Misconfigured options given', -verbose => 1, -exitval => 1);
@@ -140,7 +141,7 @@ sub process {
   my $dbc = $self->target_dbc();
   my $config_hash = $self->{json};
   my $is_dna = 1;
-  
+
   foreach my $species (keys %{$config_hash}) {
     foreach my $group (keys %{$config_hash->{$species}}) {
       $is_dna = 0 if $group ne 'core';
@@ -174,7 +175,7 @@ sub process {
 
 sub dump_database {
   my ($self, $dba) = @_;
-  my $dir = $self->{opts}->{directory}; 
+  my $dir = $self->{opts}->{directory};
   if($dir) {
     print STDERR "Directory given; will dump database to this location\n";
     my $dumper = Bio::EnsEMBL::Test::DumpDatabase->new($dba, $dir);
@@ -216,7 +217,7 @@ sub copy_regions {
   my $seq_region_names;
 
   # Grab all toplevel slices and record those IDs which need to be
-  # transferred for the  
+  # transferred for the
   my @toplevel_slices;
   my %seq_region_id_list;
   foreach my $region (@{$regions}) {
@@ -248,18 +249,18 @@ sub copy_regions {
       my $contig_slice = $contig->[2];
       $seq_region_id_list{$contig_slice->get_seq_region_id} = 1;
     }
-    
+
   }
-  
-  #Copy the information about each contig/supercontig's assembly 
+
+  #Copy the information about each contig/supercontig's assembly
   my $seq_region_ids = join(q{,}, keys %seq_region_id_list);
   if ($is_dna) {
     my $sr_query = "SELECT a.* FROM seq_region s JOIN assembly a ON (s.seq_region_id = a.cmp_seq_region_id) WHERE seq_region_id IN ($seq_region_ids)";
     $self->copy_data($from, $to, "assembly", $sr_query);
   }
-  
-  
-  # Once we've got the original list of slices we have to know if one is an 
+
+
+  # Once we've got the original list of slices we have to know if one is an
   # assembly what it maps to & bring that seq_region along (toplevel def). If
   # seq is wanted then user has to specify that region
   my @seq_region_exception_ids;
@@ -271,20 +272,20 @@ sub copy_regions {
       push(@seq_region_exception_ids, $slice_adaptor->get_seq_region_id($exception->alternate_slice()));
     }
   }
-  
+
   #Grab the copied IDs from the target DB & use this to drive the copy of assembly exceptions
   my $asm_cmp_ids = join(q{,}, @seq_region_exception_ids);
   if (scalar(@seq_region_exception_ids) > 0) {
     $self->copy_data($from, $to, 'assembly_exception', "SELECT * FROM assembly_exception WHERE seq_region_id in ($asm_cmp_ids)");
   }
-  
+
   #Now transfer all seq_regions from seq_region into the new DB
   my @seq_regions_to_copy = (@seq_region_exception_ids, (map { $slice_adaptor->get_seq_region_id($_) } @toplevel_slices), keys %seq_region_id_list);
   my $seq_regions_to_copy_in = join(q{,}, @seq_regions_to_copy);
   $self->copy_data($from, $to, 'seq_region', "SELECT * FROM seq_region WHERE seq_region_id in ($seq_regions_to_copy_in)");
   $self->copy_data($from, $to, 'seq_region_attrib', "SELECT * FROM seq_region_attrib WHERE seq_region_id in ($seq_regions_to_copy_in)") if $is_dna;
   $self->copy_data($from, $to, 'dna', "SELECT * FROM dna WHERE seq_region_id in ($seq_regions_to_copy_in)") if $is_dna;
-  
+
   return \@toplevel_slices;
 }
 
@@ -298,7 +299,7 @@ sub copy_features {
     $sig_warn = $SIG{__WARN__};
     $sig_warn_guard = scope_guard(sub { $SIG{__WARN__} = $sig_warn });
     $SIG{__WARN__} = sub {}; #ignore everything
-  }  
+  }
   print STDERR "Copying $name features\n";
   my $from_adaptor = $from->get_adaptor($name);
   my $to_adaptor = $to->get_adaptor($name);
@@ -317,7 +318,7 @@ sub copy_features {
           print STDERR sprintf('Processing %d out of %d'."\n", $count, $total_features);
         }
       }
-      
+
       $f = $self->post_process_feature($f, $slice);
       next unless $f; # means we decided not to store it
       $to_adaptor->store($f);
@@ -338,7 +339,7 @@ sub copy_database_structure {
   $target_dbc->do('create database '.$target_name);
   my $cmd_tmpl = 'mysqldump --host=%s --port=%d --user=%s --no-data --skip-add-locks --skip-lock-tables %s | mysql --host=%s --port=%d --user=%s --password=%s %s';
   my @src_args = map { $dbc->$_() } qw/host port username dbname/;
-  my @trg_args = ((map { $target_dbc->$_() } qw/host port username password/), $target_name);  
+  my @trg_args = ((map { $target_dbc->$_() } qw/host port username password/), $target_name);
   my $cmd = sprintf($cmd_tmpl, @src_args, @trg_args);
   system($cmd);
   my $rc = $? >> 8;
@@ -394,7 +395,7 @@ sub copy_data {
         }
         elsif(!looks_like_number($e)) {
           $e =~ s/\n/\\\n/g;
-          $e =~ s/\t/\\\t/g; 
+          $e =~ s/\t/\\\t/g;
         }
         push(@copy, $e);
       }
@@ -409,6 +410,9 @@ sub copy_data {
 
 sub new_dbname {
   my ($self, $dbname) = @_;
+  if(defined $self->{opts}->{dest_dbname}){
+    return $self->{opts}->{dest_dbname};
+  }
   my @localtime = localtime();
   my $date      = strftime '%Y%m%d', @localtime;
   my $time      = strftime '%H%M%S', @localtime;
@@ -419,7 +423,7 @@ sub post_process_feature {
   my ($self, $f, $slice, $filter_exception) = @_;
   my $filter = $self->filter_on_exception($f, $slice, $filter_exception);
   return if $filter;
-  
+
   #Core objects
   if($f->can('load')) {
     $f->load();
@@ -427,8 +431,8 @@ sub post_process_feature {
   elsif($f->isa('Bio::EnsEMBL::RepeatFeature')) {
     $self->_load_repeat($f);
   }
-  
-  
+
+
   return $f;
 }
 
