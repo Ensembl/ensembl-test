@@ -313,6 +313,8 @@ sub create_adaptor {
     else {
       $self->{db_adaptors}->{$dbtype} = $adaptor;
     }
+  } else {
+    die "Failed to load dependency on $module described in MultiTestDB.* files: $EVAL_ERROR";
   }
   return;
 }
