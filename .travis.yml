@@ -54,7 +54,7 @@ matrix:
 
 notifications:
   email:
-    on_success: always
-    on_failure: always
+    on_failure: change
   slack:
     secure: mS8ac72wmNRN6sz9nNyoFf59xnC75sU7TW4v/kUfC6hTW8pmwdx4ss1P4qkegJJb3bvxj+oKQRUqk8BtApozPyNXTkBDTMjsPXH0IQ4uz9JE5PHIzLpW1PMPiiV/JbyM2LX8vUFm/CA1t/tiwzSQ3PqrN3KjTrqbcyrEe+hD+jQ=
+    on_failure: change
