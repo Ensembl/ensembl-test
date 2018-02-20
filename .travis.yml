@@ -1,9 +1,8 @@
 language: perl
 
 perl:
+  - '5.26'
   - '5.14'
-  - '5.12'
-  - '5.10'
 
 env:
   matrix:
@@ -22,7 +21,7 @@ addons:
 
 before_install:
   - git clone --branch master --depth 1 https://github.com/Ensembl/ensembl.git
-  - git clone -b bioperl-release-1-6-1 --depth 1 https://github.com/bioperl/bioperl-live.git
+  - git clone -b release-1-6-924 --depth 1 https://github.com/bioperl/bioperl-live.git
 
 install:
   - cpanm -v --installdeps --notest .
@@ -41,15 +40,11 @@ jobs:
 
 matrix:
   exclude:
-  - perl: '5.10'
+  - perl: '5.14'
     env: COVERALLS=false DB=mysql
-  - perl: '5.12'
+  - perl: '5.26'
     env: COVERALLS=false DB=sqlite
-  - perl: '5.12'
-    env: COVERALLS=true  DB=mysql
-  - perl: '5.14'
-    env: COVERALLS=false DB=sqlite
-  - perl: '5.14'
+  - perl: '5.26'
     env: COVERALLS=true  DB=mysql
 
 notifications:
