@@ -38,7 +38,7 @@ convert_schema() {
   fi
 
   echo "Dumping '$species' - '$db_type'"
-  "${script_dir}/dump_test_schema.pl" --species "${species}" --db_type "${db_type}" --test_dir "${test_dir}"
+  "${script_dir}/dump_test_schema.pl" --species "${species}" --db_type "${db_type}" --test_dir "${test_dir}" --check_driver "SQLite"
 
   dest_dir="${schema_dir}/SQLite"
   mkdir -v -p "${dest_dir}"
