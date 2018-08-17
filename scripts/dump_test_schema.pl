@@ -156,7 +156,11 @@ sub get_MultiTestDB {
 sub make_schema {
     my ($self) = @_;
 
-    my $loader_options = { naming => 'current' };
+    my $loader_options = {
+        naming => 'current',
+        col_collision_map => 'column_%s',
+    };
+
     $loader_options->{dump_directory} = $self->schema_dir if $self->dump_schema;
 
     make_schema_at($self->schema_class, $loader_options, [ sub { $self->dbc->db_handle } ]);
