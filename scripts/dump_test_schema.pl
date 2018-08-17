@@ -188,7 +188,7 @@ sub patch_ddl {
 
 sub connected_schema {
     my ($self) = @_;
-    return $self->schema_class->connect( [ sub { $self->dbc->db_handle } ] );
+    return $self->schema_class->connect;
 }
 
 no Moose;
