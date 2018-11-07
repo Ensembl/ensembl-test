@@ -141,6 +141,7 @@ sub process {
   my $dbc = $self->target_dbc();
   my $config_hash = $self->{json};
   my $is_dna = 1;
+  my %created;
 
   foreach my $species (keys %{$config_hash}) {
     foreach my $group (keys %{$config_hash->{$species}}) {
@@ -150,7 +151,8 @@ sub process {
       my $info = $config_hash->{$species}->{$group};
       my $regions = $info->{regions};
       my $adaptors = $info->{adaptors};
-      my $to = $self->copy_database_structure($species, $group, $dbc);
+      my $exists = exists $created{$group};
+      my $to = $self->copy_database_structure($species, $group, $dbc, $exists);
       if ($group ne 'core') {
         $is_dna = 0;
         my $dnadb = $registry->get_DBAdaptor($species, 'core');
@@ -161,14 +163,16 @@ sub process {
         $from->dnadb($dnadb);
         $to->dnadb($dnadb);
       }
-      $self->copy_globals($from, $to);
+      $self->copy_globals($from, $to) if ! $exists;
       my $slices = $self->copy_regions($from, $to, $regions, $is_dna);
       my $filter_exceptions = $info->{filter_exceptions};
       foreach my $adaptor_info (@{$adaptors}) {
         $self->copy_features($from, $to, $slices, $adaptor_info, $filter_exceptions);
       }
       $self->dump_database($to);
-      $self->drop_database($to);
+      if (! $self->drop_database($to)) {
+        $created{$group}++;
+      }
     }
   }
 }
@@ -193,8 +197,9 @@ sub drop_database {
     $dbc->do('drop database '.$db);
     delete $dbc->{dbname};
     $dbc->disconnect_if_idle();
+    return 1;
   }
-  return;
+  return 0;
 }
 
 
@@ -329,26 +334,31 @@ sub copy_features {
 }
 
 sub copy_database_structure {
-  my ($self, $species, $group, $target_dbc) = @_;
+  my ($self, $species, $group, $target_dbc, $exists) = @_;
   my $dba = Bio::EnsEMBL::Registry->get_DBAdaptor($species, $group);
   my $dbc = $dba->dbc();
   my $target_name = $self->new_dbname($dba->dbc()->dbname());
   my $source_name = $dba->dbc->dbname();
-  print STDERR "Copying schema from ${source_name} into '${target_name}'\n";
-  $target_dbc->do('drop database if exists '.$target_name);
-  $target_dbc->do('create database '.$target_name);
-  my $cmd_tmpl = 'mysqldump --host=%s --port=%d --user=%s --no-data --skip-add-locks --skip-lock-tables %s | mysql --host=%s --port=%d --user=%s --password=%s %s';
-  my @src_args = map { $dbc->$_() } qw/host port username dbname/;
-  my @trg_args = ((map { $target_dbc->$_() } qw/host port username password/), $target_name);
-  my $cmd = sprintf($cmd_tmpl, @src_args, @trg_args);
-  system($cmd);
-  my $rc = $? >> 8;
-  if($rc != 0 ) {
-    die "Could not execute command '$cmd'; got return code of $rc";
+  if (! $exists) {
+    print STDERR "Copying schema from ${source_name} into '${target_name}'\n";
+    $target_dbc->do('drop database if exists '.$target_name);
+    $target_dbc->do('create database '.$target_name);
+    my $cmd_tmpl = 'mysqldump --host=%s --port=%d --user=%s --no-data --skip-add-locks --skip-lock-tables %s | mysql --host=%s --port=%d --user=%s --password=%s %s';
+    my @src_args = map { $dbc->$_() } qw/host port username dbname/;
+    my @trg_args = ((map { $target_dbc->$_() } qw/host port username password/), $target_name);
+    my $cmd = sprintf($cmd_tmpl, @src_args, @trg_args);
+    system($cmd);
+    my $rc = $? >> 8;
+    if($rc != 0 ) {
+      die "Could not execute command '$cmd'; got return code of $rc";
+    }
+    $target_dbc->dbname($target_name);
+    $target_dbc->do('use '.$target_name);
+    print STDERR "Finished population\n";
+  } else {
+    print STDERR "Using existing database '${target_name}'\n";
   }
-  $target_dbc->dbname($target_name);
-  $target_dbc->do('use '.$target_name);
-  print STDERR "Finished population\n";
+
   my $dbadaptor;
   if ($group eq 'funcgen') {
     $dbadaptor = Bio::EnsEMBL::Funcgen::DBSQL::DBAdaptor->new(
@@ -361,7 +371,9 @@ sub copy_database_structure {
     $dbadaptor = Bio::EnsEMBL::DBSQL::DBAdaptor->new(
     -DBCONN => $target_dbc,
     -GROUP => $group,
-    -SPECIES => $target_name,
+    -SPECIES => $species,
+    -SPECIES_ID => $dba->species_id,
+    -MULTISPECIES_DB => $dba->is_multispecies,
   );
   }
   return $dbadaptor;
