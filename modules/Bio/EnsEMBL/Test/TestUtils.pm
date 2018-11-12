@@ -484,11 +484,12 @@ sub has_apache2_licence {
   if($skip_test) {
     return __PACKAGE__->builder->ok(1, "$file has a no critic (RequireApache2Licence) directive");
   }
-  if($found_copyright && $found_url && $found_warranties && $found_sanger_embl_ebi_year && $found_embl_ebi_year) {
-    return __PACKAGE__->builder->ok(1, "$file has an Apache v2.0 licence declaration and correct Copyright year [2016-$current_year]");
-  }
-  if ($found_copyright && $found_url && $found_warranties && $no_affiliation) {
-    return __PACKAGE__->builder->ok(1, "$file has an Apache v2.0 licence declaration with no Copyright year");
+  if($found_copyright && $found_url && $found_warranties) {
+    if ($found_sanger_embl_ebi_year && $found_embl_ebi_year) {
+      return __PACKAGE__->builder->ok(1, "$file has an Apache v2.0 licence declaration and correct Copyright year [2016-$current_year]");
+    } elsif ($no_affiliation) {
+      return __PACKAGE__->builder->ok(1, "$file has an Apache v2.0 licence declaration with no Copyright year");
+    }
   }
   __PACKAGE__->builder->diag("$file is missing Apache v2.0 declaration") unless $found_copyright;
   __PACKAGE__->builder->diag("$file is missing Apache URL")              unless $found_url;
