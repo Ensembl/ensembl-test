@@ -781,7 +781,11 @@ sub create_db_name {
   # Create a unique name using host and date / time info
   my $db_name = sprintf(
       '%s_test_db_%s_%s_%s_%s',
-      ( exists $ENV{'LOGNAME'} ? $ENV{'LOGNAME'} : $ENV{'USER'} ),
+      (
+        exists $ENV{'ENSEMBL_TESTDB_PREFIX'} ? $ENV{'ENSEMBL_TESTDB_PREFIX'}
+          : exists $ENV{'LOGNAME'}           ? $ENV{'LOGNAME'}
+          : $ENV{'USER'}
+      ),
       $species, $dbtype, $date, $time
   );
   if (my $path = $self->_db_path($self->dbi_connection)) {
