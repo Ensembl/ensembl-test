@@ -88,7 +88,7 @@ sub report_dumper_cmdline {
   my ($self) = @_;
   my $dbc = $self->{mdb}->get_DBAdaptor($self->{opts}->{type})->dbc();
   my $password = ($dbc->password()) ? '--pass '.$dbc->password() : q{};
-  printf "Database dumper command line: dump_mysql.pl --host %s --port %d --user %s %s --database %s --verbose --testcompatible --directory $HOME\n", 
+  printf "Database dumper command line: dump_mysql.pl --host %s --port %d --user %s %s --database %s --verbose --testcompatible --directory $ENV{HOME}\n",
     $dbc->host(), $dbc->port(), $dbc->username(), $password, $dbc->dbname();
 }
 
