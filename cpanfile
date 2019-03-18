@@ -27,3 +27,8 @@ requires 'POSIX';
 requires 'File::Spec';
 requires 'File::Temp';
 requires 'Time::Piece';
+
+feature 'testdb_patcher', 'Additional dependencies of scripts used to patch test databases' => sub {
+  requires 'DBIx::Class::Schema::Loader';
+  requires 'SQL::Translator';
+};
