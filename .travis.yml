@@ -24,6 +24,14 @@ before_install:
   - git clone -b release-1-6-924 --depth 1 https://github.com/bioperl/bioperl-live.git
 
 install:
+  # Install IO::Scalar before processing the cpanfile because one of the dependencies
+  # of Test::FTP::Server requires it yet does not declare it as a dependency, and
+  # cpanm - or to be precise the module CPAN::Meta::Prereqs - scrambles the order
+  # of entries in cpanfiles (see https://github.com/miyagawa/cpanfile/issues/42).
+  # Cpanfile upstream categorically refuses to implement the forcing of dependencies
+  # (see https://github.com/miyagawa/cpanfile/issues/3) so we will have to keep this
+  # here until either Net::FTPServer has been fixed or we stop using Test::FTP::Server
+  - cpanm -n IO::Scalar
   - cpanm -v --installdeps --notest .
   - cpanm -n Devel::Cover::Report::Coveralls
   - cpanm -n DBD::SQLite
