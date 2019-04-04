@@ -59,5 +59,6 @@ notifications:
   email:
     on_failure: change
   slack:
-    secure: mS8ac72wmNRN6sz9nNyoFf59xnC75sU7TW4v/kUfC6hTW8pmwdx4ss1P4qkegJJb3bvxj+oKQRUqk8BtApozPyNXTkBDTMjsPXH0IQ4uz9JE5PHIzLpW1PMPiiV/JbyM2LX8vUFm/CA1t/tiwzSQ3PqrN3KjTrqbcyrEe+hD+jQ=
+    rooms:
+      secure: JSqXP1CEa5/0x1qn6WoJ4KgLIrSVk8rTBoyy75RBGBZekrJvX5SuSqbZGK4V+oq1pBsk60MOlOkRuMDYrLBcB2TcDRKBqvaWqEbKiJtbmOJTZjFFssPr1HdJ8C77OxBg7CS+IdMh6Hf7AyAkCwO+e0c6ihgvmgx9+MIwmdgGAfw=
     on_failure: change
