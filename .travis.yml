@@ -4,6 +4,9 @@ perl:
   - '5.26'
   - '5.14'
 
+services:
+  - mysql
+
 env:
   matrix:
   - COVERALLS=true  DB=mysql
