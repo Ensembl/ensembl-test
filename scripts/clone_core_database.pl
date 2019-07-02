@@ -229,7 +229,7 @@ sub copy_regions {
     my ($name, $start, $end, $coord_system, $version) = @{$region};
     my $strand = undef;
     $coord_system ||= 'toplevel';
-    #Make the assumption that the core API is OK and that the 3 levels of assembly are chromosome, supercontig and contig
+    #Make the assumption that the core API is OK
     #Also only get those slices which are unique
     my $slice = $slice_adaptor->fetch_by_region($coord_system, $name, $start, $end, $strand, $version);
     if(! $slice) {
@@ -237,22 +237,12 @@ sub copy_regions {
       next;
     }
     push(@toplevel_slices, $slice);
-    my $supercontigs;
 
-    #May not always have supercontigs
-    if ( $coord_systems->{'supercontig'} ) {
-      $supercontigs = $slice->project('supercontig');
-      foreach my $supercontig (@$supercontigs) {
-        my $supercontig_slice = $supercontig->[2];
-        $seq_region_id_list{$supercontig_slice->get_seq_region_id} = 1;
-      }
-    }
-
-    #Assume always have contigs
-    my $contigs = $slice->project('contig');
-    foreach my $contig (@$contigs) {
-      my $contig_slice = $contig->[2];
-      $seq_region_id_list{$contig_slice->get_seq_region_id} = 1;
+    #'sequence_level' can be different than 'contig' (e.g. 'primary_assembly')
+    my $fragments = $slice->project('seqlevel');
+    foreach my $frag (@$fragments) {
+      my $frag_slice = $frag->[2];
+      $seq_region_id_list{$frag_slice->get_seq_region_id} = 1;
     }
 
   }
