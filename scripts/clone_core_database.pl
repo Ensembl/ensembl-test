@@ -215,9 +215,6 @@ sub copy_globals {
 # Starts the copy across of Slices
 sub copy_regions {
   my ($self, $from, $to, $regions, $is_dna) = @_;
-  my $coord_sql = "select name, coord_system_id from coord_system";
-  my $coord_systems = $to->dbc->sql_helper()->execute_into_hash(-SQL => $coord_sql);
-
   my $slice_adaptor = $from->get_adaptor("Slice");
   my $seq_region_names;
 
