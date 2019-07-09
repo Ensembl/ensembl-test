@@ -237,6 +237,9 @@ sub copy_regions {
 
     #'sequence_level' can be different than 'contig' (e.g. 'primary_assembly')
     my $fragments = $slice->project('seqlevel');
+    if (scalar @$fragments == 0) {
+      die "No assemblies projected from 'seqlevel' to '$coord_system'";
+    }
     foreach my $frag (@$fragments) {
       my $frag_slice = $frag->[2];
       $seq_region_id_list{$frag_slice->get_seq_region_id} = 1;
