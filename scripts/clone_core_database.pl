@@ -215,9 +215,6 @@ sub copy_globals {
 # Starts the copy across of Slices
 sub copy_regions {
   my ($self, $from, $to, $regions, $is_dna) = @_;
-  my $coord_sql = "select name, coord_system_id from coord_system";
-  my $coord_systems = $to->dbc->sql_helper()->execute_into_hash(-SQL => $coord_sql);
-
   my $slice_adaptor = $from->get_adaptor("Slice");
   my $seq_region_names;
 
@@ -229,7 +226,7 @@ sub copy_regions {
     my ($name, $start, $end, $coord_system, $version) = @{$region};
     my $strand = undef;
     $coord_system ||= 'toplevel';
-    #Make the assumption that the core API is OK and that the 3 levels of assembly are chromosome, supercontig and contig
+    #Make the assumption that the core API is OK
     #Also only get those slices which are unique
     my $slice = $slice_adaptor->fetch_by_region($coord_system, $name, $start, $end, $strand, $version);
     if(! $slice) {
@@ -237,22 +234,15 @@ sub copy_regions {
       next;
     }
     push(@toplevel_slices, $slice);
-    my $supercontigs;
 
-    #May not always have supercontigs
-    if ( $coord_systems->{'supercontig'} ) {
-      $supercontigs = $slice->project('supercontig');
-      foreach my $supercontig (@$supercontigs) {
-        my $supercontig_slice = $supercontig->[2];
-        $seq_region_id_list{$supercontig_slice->get_seq_region_id} = 1;
-      }
+    #'sequence_level' can be different than 'contig' (e.g. 'primary_assembly')
+    my $fragments = $slice->project('seqlevel');
+    if (scalar @$fragments == 0) {
+      die "No assemblies projected from 'seqlevel' to '$coord_system'";
     }
-
-    #Assume always have contigs
-    my $contigs = $slice->project('contig');
-    foreach my $contig (@$contigs) {
-      my $contig_slice = $contig->[2];
-      $seq_region_id_list{$contig_slice->get_seq_region_id} = 1;
+    foreach my $frag (@$fragments) {
+      my $frag_slice = $frag->[2];
+      $seq_region_id_list{$frag_slice->get_seq_region_id} = 1;
     }
 
   }
