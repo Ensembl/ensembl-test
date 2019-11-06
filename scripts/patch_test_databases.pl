@@ -27,6 +27,7 @@ use Getopt::Long;
 use Pod::Usage;
 
 my %skip_species_list;
+# WARNING: If you change this, please update documentation of the option --types as well
 my %skip_groups_list = map { $_ => 1} qw/web hive/; 
 
 sub run {
@@ -52,6 +53,7 @@ sub args {
     $opts, qw/
       curr_dir|current_directory|directory|dir=s
       schema_patcher=s
+      types=s@
       nofixlast!
       noquiet!
       noverbose!
@@ -62,6 +64,16 @@ sub args {
   ) or pod2usage(-verbose => 1, -exitval => 1);
   pod2usage(-verbose => 1, -exitval => 0) if $opts->{help};
   pod2usage(-verbose => 2, -exitval => 0) if $opts->{man};
+
+  if ( exists $opts->{types} ) {
+    # Thanks to this one can use both '--types foo --types bar' and '--types foo,bar'
+    my @processed_types = split qr{ , }msx, join q{,}, @{ $opts->{types} };
+
+    # Convert list of types from array to hash to speed up lookups
+    my %type_hash = map { $_ => 1 } @processed_types;
+    $opts->{types} = \%type_hash;
+  }
+
   return $self->{opts} = $opts;
 }
 
@@ -78,6 +90,11 @@ sub process {
   my ($self) = @_;
   my $dir = $self->{opts}->{curr_dir};
   my $config = $self->get_config();
+
+  # These are generally (e.g. in schema_patcher.pl) known as types but since this method
+  # already uses the term 'groups', use the latter in variable names for consistency.
+  my $include_groups_list = $self->{opts}->{types};
+
   foreach my $species (keys %{$config->{databases}}) {
     print STDOUT '='x80; print STDOUT "\n";
     if($skip_species_list{lc($species)}) {
@@ -86,7 +103,16 @@ sub process {
     }
     my $multi = Bio::EnsEMBL::Test::MultiTestDB->new($species, $dir);
     foreach my $group (keys %{$config->{databases}->{$species}}) {
-      if($skip_groups_list{lc($group)}) {
+      if ( $include_groups_list ) {
+        if ( ! exists $include_groups_list->{lc($group)} ) {
+          print STDOUT "INFO: Skipping '$group' as it hasn't been listed in --types\n";
+          next;
+        }
+      }
+      # Only exclude types from the patch ignore list if the user
+      # hasn't provided --types, that way they should be able to
+      # override the ignore list if need be
+      elsif ( $skip_groups_list{lc($group)} ) {
         print STDOUT "INFO: Skipping '$group' as it is in the patch ignore list\n";
         next;
       }
@@ -222,7 +248,7 @@ __END__
 
 =head1 SYNOPSIS
 
-  ./patch_test_databases.pl --curr_dir ensembl/modules/t [--schema_patcher PATCHER]
+  ./patch_test_databases.pl --curr_dir ensembl/modules/t [--schema_patcher PATCHER] [--types ...,...]
 
 =head1 DESCRIPTION
 
@@ -245,6 +271,12 @@ Current directory. Should be set to the directory which has your configuration f
 
 Specify the location of the schema patcher script to use. If not specified we
 assume a location of
+
+=item B<--types>
+
+Comma-separated list of database types (e.g. core, funcgen, production, ...)
+to patch. If undefined, attempt to patch databases of every type provided
+by the local MultiTestDB other than 'hive' and 'web'.
 
 =item B<--nofixlast>
 
