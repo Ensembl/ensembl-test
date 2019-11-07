@@ -33,7 +33,7 @@ use POSIX;
 use Scalar::Util qw/looks_like_number/;
 
 my %global_tables = (
-  core => [qw/attrib_type meta coord_system external_db unmapped_reason/],
+  core => [qw/attrib_type meta coord_system biotype external_db unmapped_reason/],
   funcgen => [qw/ analysis analysis_description epigenome experiment experimental_group external_db feature_type meta meta_coord regulatory_build/],
 );
 
