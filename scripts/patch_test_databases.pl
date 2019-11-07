@@ -276,7 +276,8 @@ assume a location of
 
 Comma-separated list of database types (e.g. core, funcgen, production, ...)
 to patch. If undefined, attempt to patch databases of every type provided
-by the local MultiTestDB other than 'hive' and 'web'.
+by the local MultiTestDB other than 'hive' and 'web'. Note that the patching
+of the latter two types I<can> be requested using this option.
 
 =item B<--nofixlast>
 
