@@ -7,7 +7,7 @@ stages:
 #
 
 .ensembl_test_template:
-  image: perl:${PERL_VERSION}
+  image: dockerhub.ebi.ac.uk/ensembl-infrastructure/ensembl-ci-docker-images:${PERL_VERSION}
 
   services:
     - mysql:5.6
