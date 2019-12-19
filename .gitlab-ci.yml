@@ -1,0 +1,87 @@
+#
+# Test-job template
+#
+
+.ensembl_test_template:
+  image: dockerhub.ebi.ac.uk/ensembl-infrastructure/ensembl-ci-docker-images:${PERL_VERSION}
+
+  services:
+    - mysql:5.6
+
+  variables:
+    # FIXME: set some password for both users
+    MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    MYSQL_USER: "travis"
+    MYSQL_PASSWORD: ""
+    USER: "gitlabci"
+
+  before_script:
+    - apt-get update
+    - apt-get install -y build-essential cpanminus git
+    - apt-get install -y default-libmysqlclient-dev default-mysql-client
+    - apt-get install -y libssl-dev sqlite3
+    - git clone --branch=master --depth=1 https://github.com/Ensembl/ensembl.git
+    - git clone --branch=release-1-6-924 --depth=1 https://github.com/bioperl/bioperl-live.git
+    # Install IO::Scalar before processing the cpanfile because one of the dependencies
+    # of Test::FTP::Server requires it yet does not declare it as a dependency, and
+    # cpanm - or to be precise the module CPAN::Meta::Prereqs - scrambles the order
+    # of entries in cpanfiles (see https://github.com/miyagawa/cpanfile/issues/42).
+    # Cpanfile upstream categorically refuses to implement the forcing of dependencies
+    # (see https://github.com/miyagawa/cpanfile/issues/3) so we will have to keep this
+    # here until either Net::FTPServer has been fixed or we stop using Test::FTP::Server
+    - cpanm -n IO::Scalar
+    - cpanm -v --installdeps --notest .
+    - ( cd ensembl && cpanm -v --installdeps --notest . )
+    - cpanm -n Devel::Cover::Report::Coveralls
+    - cpanm -n DBD::SQLite
+    - cp travisci/MultiTestDB.conf.gitlabci.mysql  modules/t/MultiTestDB.conf.mysql
+    - cp travisci/MultiTestDB.conf.travisci.SQLite modules/t/MultiTestDB.conf.SQLite
+    - mysql -u root -h mysql -e 'GRANT ALL PRIVILEGES ON *.* TO "travis"@"%"'
+
+#
+# Test jobs
+#
+
+test:perl5.14-sqlite:
+  stage: test
+  extends: .ensembl_test_template
+  variables:
+    PERL_VERSION: "5.14"
+    COVERALLS: "false"
+    DB: "sqlite"
+  script:
+    - ./travisci/harness.sh
+
+test:perl5.30-mysql:
+  stage: test
+  extends: .ensembl_test_template
+  variables:
+    PERL_VERSION: "5.30"
+    # Note: relies on the secret variable COVERALLS_REPO_TOKEN for report uploads to work
+    COVERALLS: "true"
+    DB: "mysql"
+  script:
+    - ./travisci/harness.sh
+
+#
+# Triggers for dependent builds
+#
+
+# The template. It doesn't presently support PRs before they are
+# merged (would need extended run condition and better selection of
+# downstream branches) - but then again, we do not trigger dependent
+# builds for PRs on Travis either.
+.dependent_template:
+  stage: test
+  only:
+    - master
+    - /^release/\d+$/
+  trigger:
+    # Use the same branch as in this project
+    branch: ${CI_COMMIT_REF_NAME}
+
+# Actual trigger jobs
+test:trigger_main:
+  extends: .dependent_template
+  trigger:
+    project: ensembl-gh-mirror/ensembl
