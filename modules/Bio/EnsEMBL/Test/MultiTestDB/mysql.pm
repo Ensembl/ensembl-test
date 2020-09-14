@@ -42,9 +42,21 @@ use base 'Bio::EnsEMBL::Test::MultiTestDB';
 
 sub load_txt_dump {
     my ($self, $txt_file, $tablename, $db) = @_;
-    my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s` FIELDS ESCAPED BY '\\\\'}, $txt_file, $tablename);
-    $db->do($load);
-    return $db;
+    if(index($txt_file, 'compressed_genotype_var') != -1) {
+    	my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s`FIELDS ESCAPED BY '\\\\' 
+    	 SET genotypes = UNHEX(@var1)}, $txt_file, $tablename);	
+    	$db->do($load);
+    	return $db;
+    } elsif (index($txt_file, 'compressed_genotype_region') != -1) {
+    	my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s`FIELDS ESCAPED BY '\\\\' (sample_id, seq_region_id, seq_region_start, seq_region_end, seq_region_strand, @var1) SET genotypes = UNHEX(@var1)}, $txt_file, $tablename);	
+    	$db->do($load);
+    	return $db;
+    } else {
+    	my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s` FIELDS ESCAPED BY '\\\\'}, $txt_file, $tablename);
+    	$db->do($load);
+    	return $db;
+    }
+    
 }
 
 sub create_and_use_db {
