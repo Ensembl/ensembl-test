@@ -20,7 +20,7 @@
     - apt-get install -y build-essential cpanminus git
     - apt-get install -y default-libmysqlclient-dev default-mysql-client
     - apt-get install -y libssl-dev sqlite3
-    - git clone --branch=master --depth=1 https://github.com/Ensembl/ensembl.git
+    - git clone --branch=main --depth=1 https://github.com/Ensembl/ensembl.git
     - git clone --branch=release-1-6-924 --depth=1 https://github.com/bioperl/bioperl-live.git
     # Install IO::Scalar before processing the cpanfile because one of the dependencies
     # of Test::FTP::Server requires it yet does not declare it as a dependency, and
