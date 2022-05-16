@@ -20,7 +20,7 @@
     - apt-get install -y build-essential cpanminus git
     - apt-get install -y default-libmysqlclient-dev default-mysql-client
     - apt-get install -y libssl-dev sqlite3
-    - git clone --branch=master --depth=1 https://github.com/Ensembl/ensembl.git
+    - git clone --branch=main --depth=1 https://github.com/Ensembl/ensembl.git
     - git clone --branch=release-1-6-924 --depth=1 https://github.com/bioperl/bioperl-live.git
     # Install IO::Scalar before processing the cpanfile because one of the dependencies
     # of Test::FTP::Server requires it yet does not declare it as a dependency, and
@@ -30,6 +30,9 @@
     # (see https://github.com/miyagawa/cpanfile/issues/3) so we will have to keep this
     # here until either Net::FTPServer has been fixed or we stop using Test::FTP::Server
     - cpanm -n IO::Scalar
+    # Added module below because of dependency of Net::FTPServer
+    # https://github.com/ryochin/p5-net-ftpserver
+    - cpanm -n IO::Stringy
     - cpanm -v --installdeps --notest .
     - ( cd ensembl && cpanm -v --installdeps --notest . )
     - cpanm -n Devel::Cover::Report::Coveralls
@@ -74,7 +77,7 @@ test:perl5.30-mysql:
 .dependent_template:
   stage: test
   only:
-    - master
+    - main
     - /^release/\d+$/
   trigger:
     # Use the same branch as in this project
