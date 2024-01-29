@@ -51,7 +51,7 @@ sub load_txt_dump {
     my $db_type = basename(dirname($txt_file)); # yuck!!
     my $db_file = $self->{conf}->{$db_type}->{dbname}; # yuck, but at least it's there
     my $command = sprintf('.import %s %s', $txt_file, $tablename);
-    system('sqlite3', '-tabs', $db_file, $command) == 0
+    system('sqlite3', '-separator', "\t", $db_file, $command) == 0
         or die "sqlite3 import of '$txt_file' failed: $?";
 
     $db = $self->_do_connect($db_file);
