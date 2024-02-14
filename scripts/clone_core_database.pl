@@ -300,8 +300,14 @@ sub copy_features {
   my $to_adaptor = $to->get_adaptor($name);
   my $method = $adaptor_info->{method} || 'fetch_all_by_Slice';
   my $args = $adaptor_info->{args} || [];
+
   foreach my $slice (@{$slices}) {
-    my $features = $from_adaptor->$method($slice, @{$args});
+    my $features;
+    if ($method eq 'fetch_all_by_Slice') {
+      $features = $from_adaptor->$method($slice, @{$args});
+    } else {
+      $features = $from_adaptor->$method($args);
+    }
     my $total_features = scalar(@{$features});
     my $count = 0;
     foreach my $f (@{$features}) {
