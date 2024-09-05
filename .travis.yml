@@ -28,6 +28,7 @@ install:
   # Cpanfile upstream categorically refuses to implement the forcing of dependencies
   # (see https://github.com/miyagawa/cpanfile/issues/3) so we will have to keep this
   # here until either Net::FTPServer has been fixed or we stop using Test::FTP::Server
+  - cpanm --notest --sudo Archive::Zip Authen::PAM BSD::Resource File::Sync IO::Scalar
   - cpanm -v --notest --sudo Net::FTPServer Test::FTP::Server
   - cpanm -v --sudo --installdeps --notest .
   - cp travisci/MultiTestDB.conf.travisci.mysql  modules/t/MultiTestDB.conf.mysql
