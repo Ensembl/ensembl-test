@@ -1,9 +1,12 @@
 requires 'DBI';
-requires 'DBD::mysql', '<= 4.050'; # newer versions do not support MySQL 5
+requires 'DBD::mysql', '< 5.0'; # newer versions do not support MySQL 5
+requires 'DBD::SQLite';
 requires 'Test::More';
 requires 'Test::Warnings';
-requires 'Devel::Peek';
+requires 'Devel::Cover';
+requires 'Devel::Cover::Report::Coveralls';
 requires 'Devel::Cycle';
+requires 'Devel::Peek';
 requires 'Error';
 requires 'PadWalker';
 requires 'Test::Builder::Module';
