@@ -351,7 +351,8 @@ CREATE TABLE "genomic_align_block" (
   "perc_id" tinyint,
   "length" integer NOT NULL,
   "group_id" bigint,
-  "level_id" tinyint NOT NULL DEFAULT 0
+  "level_id" tinyint NOT NULL DEFAULT 0,
+  "direction" tinyint DEFAULT NULL
 );
 
 --
