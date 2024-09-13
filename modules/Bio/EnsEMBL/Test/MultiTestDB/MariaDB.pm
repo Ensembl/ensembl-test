@@ -17,17 +17,17 @@ limitations under the License.
 
 =cut
 
-package Bio::EnsEMBL::Test::MultiTestDB::mysql;
+package Bio::EnsEMBL::Test::MultiTestDB::MariaDB;
 
 =pod
 
 =head1 NAME
 
-Bio::EnsEMBL::Test::MultiTestDB::mysql
+Bio::EnsEMBL::Test::MultiTestDB::MariaDB
 
 =head1 DESCRIPTION
 
-MySQL specifics for Bio::EnsEMBL::Test::MultiTestDB.
+MariaDB specifics for Bio::EnsEMBL::Test::MultiTestDB.
 
 Used automatically, as determined by the 'driver' setting in MultiTestDB.conf.
 
@@ -72,7 +72,9 @@ sub create_and_use_db {
 
 sub _db_conf_to_dbi {
   my ($self, $db_conf, $options) = @_;
-  my %params = (host => $db_conf->{host}, port => $db_conf->{port});
+  my %params = ($db_conf->{host} eq 'localhost')?
+               (host => $db_conf->{host}):
+               (host => $db_conf->{host}, port => $db_conf->{port});
   %params = (%params, %{$options}) if $options;
   my $param_str = join(q{;}, map { $_.'='.$params{$_} } keys %params);
   my $locator = sprintf('DBI:%s:%s', $db_conf->{driver}, $param_str);
@@ -84,7 +86,7 @@ sub _db_conf_to_dbi {
 
 sub _dbi_options {
     my $self = shift;
-    return {mysql_local_infile => 1};
+    return {mariadb_local_infile => 1, mariadb_max_allowed_packet => 1024*1024*1024, mariadb_server_prepare => 1};
 }
 
 sub _schema_name {
