@@ -86,6 +86,7 @@ use vars qw( @ISA @EXPORT );
   has_apache2_licence
   all_has_apache2_licence
   all_source_code
+  is_notice_file_good
 );
 
 =head2 test_getter_setter
@@ -494,9 +495,77 @@ sub has_apache2_licence {
   __PACKAGE__->builder->diag("$file is missing Apache v2.0 declaration") unless $found_copyright;
   __PACKAGE__->builder->diag("$file is missing Apache URL")              unless $found_url;
   __PACKAGE__->builder->diag("$file is missing Apache v2.0 warranties")  unless $found_warranties;
-  __PACKAGE__->builder->diag("$file is missing Copyright \[1999\-2015\] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute")  unless $found_sanger_embl_ebi_year;
-  __PACKAGE__->builder->diag("$file is missing Copyright \[2016\-$current_year\] EMBL-European Bioinformatics Institute")  unless $found_embl_ebi_year;
-  return __PACKAGE__->builder->ok(0, "$file does not have an Apache v2.0 licence declaration and correct Copyright year [2016-$current_year] in the first $max_lines lines");
+
+  my $msg;
+
+  unless ($found_sanger_embl_ebi_year) {
+     $msg = "$file is missing Copyright \[1999\-2015\] Wellcome Trust Sanger Institute";
+     $msg .= " and the EMBL-European Bioinformatics Institute";
+     __PACKAGE__->builder->diag($msg);
+  }
+
+  unless ($found_embl_ebi_year) {
+     $msg = "$file is missing Copyright \[2016\-$current_year\] EMBL-European Bioinformatics Institute";
+     __PACKAGE__->builder->diag($msg);
+  }
+
+  $msg = "$file does not have an Apache v2.0 licence declaration and correct Copyright year [2016-$current_year]";
+  $msg .= " in the first $max_lines lines";
+  return __PACKAGE__->builder->ok(0, $msg);
+}
+
+=head2 is_notice_file_good
+
+  Arg [1]    : File path to the NOTICE file to test
+  Example    : is_notice_file_good('/my/file.pm');
+  Description: Asserts if we can find the NOTICE file at the given path
+               and with correct Copyright year.
+               It dies if given file cannot be opened.
+  Returntype : None
+  Exceptions : None
+
+=cut
+
+sub is_notice_file_good {
+  my $file = shift;
+  my $count = 0;
+  my $max_lines = 20;
+  my ($found_sanger_embl_ebi_year, $found_embl_ebi_year) = (0,0);
+  my $current_year = Time::Piece->new()->year();
+
+  unless (-f $file && -r $file && -T $file) {
+    return __PACKAGE__->builder->ok(0, "$file is not a file, cannot be read or is not a text file");
+  }
+
+  open my $fh, '<', $file or die "Cannot open $file: $!";
+  while(my $line = <$fh>) {
+    last if $count >= $max_lines;
+    $found_sanger_embl_ebi_year = 1
+       if $line =~ /Copyright \[1999\-2015\] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute/;
+    $found_embl_ebi_year = 1
+       if $line =~ /Copyright \[2016\-$current_year\] EMBL-European Bioinformatics Institute/;
+    $count++;
+  }
+  close $fh;
+  if ($found_sanger_embl_ebi_year && $found_embl_ebi_year) {
+    return __PACKAGE__->builder->ok(1, "$file has the correct Copyright year [2016-$current_year]");
+  }
+
+  my $msg;
+
+  unless ($found_sanger_embl_ebi_year) {
+     $msg =  "$file is missing Copyright \[1999\-2015\] Wellcome Trust Sanger Institute";
+     $msg .= " and the EMBL-European Bioinformatics Institute";
+     __PACKAGE__->builder->diag($msg);
+  }
+
+  unless ($found_embl_ebi_year) {
+     $msg =  "$file is missing Copyright \[2016\-$current_year\] EMBL-European Bioinformatics Institute";
+     __PACKAGE__->builder->diag($msg);
+  }
+
+  $msg = "$file is missing the correct Copyright year [2016-$current_year] in the first $max_lines lines";
+  return __PACKAGE__->builder->ok(0, $msg);
 }
 
 =head2 all_source_code
