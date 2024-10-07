@@ -564,7 +564,7 @@ sub is_notice_file_good {
      __PACKAGE__->builder->diag($msg);
   }
 
-  $msg = "$file is missing the correct Copyright year [2016-$current_year] in the first $max_lines lines";
+  $msg = "$file is missing the correct Copyright lines in the first $max_lines lines";
   return __PACKAGE__->builder->ok(0, $msg);
 }
 
