@@ -43,15 +43,15 @@ use base 'Bio::EnsEMBL::Test::MultiTestDB';
 sub load_txt_dump {
     my ($self, $txt_file, $tablename, $db) = @_;
     if(index($txt_file, 'compressed_genotype_var') != -1) {
-      my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s`FIELDS ESCAPED BY '\\\\' (variation_id, subsnp_id , @var1) SET genotypes = UNHEX(@var1)}, $txt_file, $tablename);
+      my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s` CHARACTER SET latin1 FIELDS ESCAPED BY '\\\\' (variation_id, subsnp_id , @var1) SET genotypes = UNHEX(@var1)}, $txt_file, $tablename);
     	$db->do($load);
     	return $db;
     } elsif (index($txt_file, 'compressed_genotype_region') != -1) {
-      my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s`FIELDS ESCAPED BY '\\\\' (sample_id, seq_region_id, seq_region_start, seq_region_end, seq_region_strand, @var1) SET genotypes = UNHEX(@var1)}, $txt_file, $tablename);
+      my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s` CHARACTER SET latin1 FIELDS ESCAPED BY '\\\\' (sample_id, seq_region_id, seq_region_start, seq_region_end, seq_region_strand, @var1) SET genotypes = UNHEX(@var1)}, $txt_file, $tablename);
     	$db->do($load);
     	return $db;
     } else {
-    	my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s` FIELDS ESCAPED BY '\\\\'}, $txt_file, $tablename);
+    	my $load = sprintf(q{LOAD DATA LOCAL INFILE '%s' INTO TABLE `%s` CHARACTER SET latin1 FIELDS ESCAPED BY '\\\\'}, $txt_file, $tablename);
     	$db->do($load);
     	return $db;
     }
@@ -60,7 +60,7 @@ sub load_txt_dump {
 
 sub create_and_use_db {
     my ($self, $db, $dbname) = @_;
-    my $create_db = $db->do("CREATE DATABASE $dbname");
+    my $create_db = $db->do("CREATE DATABASE $dbname CHARACTER SET latin1");
     if(! $create_db) {
       $self->note("!! Could not create database [$dbname]");
       return;
